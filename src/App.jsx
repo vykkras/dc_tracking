@@ -112,7 +112,7 @@ const ProfileFolderCard = ({
   onToggleInvoicePaid,
 }) => {
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState('')
+  const [date] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null)
@@ -188,17 +188,9 @@ const ProfileFolderCard = ({
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-1">Date</p>
-              <input
-                type="date"
-                value={invoice.date}
-                onChange={(event) =>
-                  onUpdateInvoice(folder.id, invoice.id, {
-                    date: event.target.value,
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                disabled={!canEditInvoice || !isEditing}
-              />
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
+                {invoice.date}
+              </div>
             </div>
             <div className="text-sm text-gray-600">
               <p className="text-xs text-gray-500 mb-1">Image</p>
@@ -290,16 +282,14 @@ const ProfileFolderCard = ({
           className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
           onSubmit={async (event) => {
             event.preventDefault()
-            if (!amount || !date) return
+            if (!amount) return
             setIsSubmitting(true)
             await onAddInvoice({
               folderId: folder.id,
               amount,
-              date,
               imageFile,
             })
             setAmount('')
-            setDate('')
             setImageFile(null)
             if (fileInputRef.current) {
               fileInputRef.current.value = ''
@@ -324,12 +314,9 @@ const ProfileFolderCard = ({
             <label className="block text-xs font-semibold text-gray-600 mb-1">
               Date
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-            />
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
+              {new Date().toLocaleDateString()}
+            </div>
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -917,7 +904,6 @@ const DCCableProjectManager = () => {
   const [showNotifications, setShowNotifications] = useState(false)
   const [quickProjectId, setQuickProjectId] = useState('')
   const [quickAmount, setQuickAmount] = useState('')
-  const [quickDate, setQuickDate] = useState('')
   const [quickFile, setQuickFile] = useState(null)
   const [payrollProjectId, setPayrollProjectId] = useState('')
   const [payrollAmount, setPayrollAmount] = useState('')
@@ -1141,13 +1127,14 @@ const DCCableProjectManager = () => {
     return { path: filePath, publicUrl: data?.publicUrl || null }
   }
 
-  const handleAddInvoice = async ({ folderId, amount, date, imageFile }) => {
-    if (!amount || !date) return
+  const handleAddInvoice = async ({ folderId, amount, imageFile }) => {
+    if (!amount) return
+    const today = new Date().toISOString().slice(0, 10)
     const uploadResult = await uploadInvoiceFile(imageFile)
     await supabase.from('invoices').insert({
       project_id: folderId,
       amount: Number(amount),
-      date,
+      date: today,
       created_by: currentUser?.id,
       created_by_email: currentUser?.email,
       paid: false,
@@ -1179,15 +1166,13 @@ const DCCableProjectManager = () => {
 
   const handleQuickAddInvoice = (event) => {
     event.preventDefault()
-    if (!quickProjectId || !quickAmount || !quickDate) return
+    if (!quickProjectId || !quickAmount) return
     handleAddInvoice({
       folderId: quickProjectId,
       amount: quickAmount,
-      date: quickDate,
       imageFile: quickFile,
     })
     setQuickAmount('')
-    setQuickDate('')
     setQuickFile(null)
   }
 
@@ -2637,14 +2622,9 @@ const DCCableProjectManager = () => {
                             <label className="block text-xs font-semibold text-gray-600 mb-1">
                               Date
                             </label>
-                            <input
-                              type="date"
-                              value={quickDate}
-                              onChange={(event) =>
-                                setQuickDate(event.target.value)
-                              }
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
+                              {new Date().toLocaleDateString()}
+                            </div>
                           </div>
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1">
