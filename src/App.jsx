@@ -425,7 +425,14 @@ const AdminOverviewView = ({
       .includes(projectFilterText.trim().toLowerCase())
   })
 
-  const projectTotals = projectList.map((folder, index) => {
+  const filteredProjectList =
+    filteredInvoices.length === 0
+      ? []
+      : projectList.filter((folder) =>
+          filteredInvoices.some((invoice) => invoice.folderId === folder.id),
+        )
+
+  const projectTotals = filteredProjectList.map((folder, index) => {
     const scopedInvoices = filteredInvoices.filter(
       (invoice) => invoice.folderId === folder.id,
     )
