@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { supabase } from './supabaseClient'
 import {
@@ -111,6 +111,8 @@ const ProfileFolderCard = ({
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState('')
   const [imageFile, setImageFile] = useState(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const fileInputRef = useRef(null)
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
@@ -251,10 +253,11 @@ const ProfileFolderCard = ({
       {canEdit && (
         <form
           className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
             if (!amount || !date) return
-            onAddInvoice({
+            setIsSubmitting(true)
+            await onAddInvoice({
               folderId: folder.id,
               amount,
               date,
@@ -263,6 +266,10 @@ const ProfileFolderCard = ({
             setAmount('')
             setDate('')
             setImageFile(null)
+            if (fileInputRef.current) {
+              fileInputRef.current.value = ''
+            }
+            setIsSubmitting(false)
           }}
         >
           <div>
@@ -294,19 +301,29 @@ const ProfileFolderCard = ({
               Invoice Image
             </label>
             <input
+              ref={fileInputRef}
               type="file"
               accept="image/*,.pdf"
               onChange={(event) =>
                 setImageFile(event.target.files?.[0] || null)
               }
-              className="w-full text-sm"
+              className="hidden"
             />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:bg-gray-50"
+              disabled={isSubmitting}
+            >
+              {imageFile ? imageFile.name : 'Upload PDF / Image'}
+            </button>
           </div>
           <button
             type="submit"
-            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700"
+            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+            disabled={isSubmitting}
           >
-            Add Invoice
+            {isSubmitting ? 'Adding...' : 'Add Invoice'}
           </button>
         </form>
       )}
@@ -541,7 +558,7 @@ const AdminOverviewView = ({
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center justify-center">
             <div className="relative">
               <div
-                className="w-64 h-64 rounded-full border border-gray-200"
+                className="w-56 h-56 sm:w-64 sm:h-64 rounded-full border border-gray-200"
                 style={{
                   background:
                     totalAllProjects === 0
@@ -550,7 +567,7 @@ const AdminOverviewView = ({
                 }}
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-32 h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
                   <p className="text-xs text-gray-500">Total</p>
                   <p className="text-lg font-semibold text-gray-900">
                     ${totalAllProjects.toLocaleString()}
@@ -618,7 +635,7 @@ const AdminOverviewView = ({
                 return (
                   <>
                     <div
-                      className="w-64 h-64 rounded-full border border-gray-200"
+                      className="w-56 h-56 sm:w-64 sm:h-64 rounded-full border border-gray-200"
                       style={{
                         background:
                           payrollTotalAll === 0
@@ -627,7 +644,7 @@ const AdminOverviewView = ({
                       }}
                     />
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-32 h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
+                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
                         <p className="text-xs text-gray-500">Payroll</p>
                         <p className="text-lg font-semibold text-gray-900">
                           ${payrollTotalAll.toLocaleString()}
@@ -1019,26 +1036,23 @@ const DCCableProjectManager = () => {
     return { path: filePath, publicUrl: data?.publicUrl || null }
   }
 
-  const handleAddInvoice = ({ folderId, amount, date, imageFile }) => {
+  const handleAddInvoice = async ({ folderId, amount, date, imageFile }) => {
     if (!amount || !date) return
-    const addInvoice = async () => {
-      const uploadResult = await uploadInvoiceFile(imageFile)
-      await supabase.from('invoices').insert({
-        project_id: folderId,
-        amount: Number(amount),
-        date,
-        created_by: currentUser?.id,
-        created_by_email: currentUser?.email,
-        paid: false,
-        paid_at: null,
-        seen_by_admin: false,
-        image_name: imageFile ? imageFile.name : null,
-        image_path: uploadResult.path,
-        image_url: uploadResult.publicUrl,
-      })
-      loadData()
-    }
-    addInvoice()
+    const uploadResult = await uploadInvoiceFile(imageFile)
+    await supabase.from('invoices').insert({
+      project_id: folderId,
+      amount: Number(amount),
+      date,
+      created_by: currentUser?.id,
+      created_by_email: currentUser?.email,
+      paid: false,
+      paid_at: null,
+      seen_by_admin: false,
+      image_name: imageFile ? imageFile.name : null,
+      image_path: uploadResult.path,
+      image_url: uploadResult.publicUrl,
+    })
+    loadData()
   }
 
   const handleAddPayroll = (event) => {
@@ -2028,7 +2042,7 @@ const DCCableProjectManager = () => {
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="relative">
+              <div className="relative hidden lg:block">
                 <Search
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                   size={20}
@@ -2117,6 +2131,13 @@ const DCCableProjectManager = () => {
       </nav>
 
       <div className="flex">
+        {sidebarOpen && (
+          <button
+            type="button"
+            className="lg:hidden fixed inset-0 bg-black/30 z-30"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
         <aside
           className={`${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
