@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+import { supabase } from './supabaseClient'
 import {
   Bell,
   Calendar,
@@ -794,10 +795,12 @@ const DCCableProjectManager = () => {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true)
+  const [isLoadingData, setIsLoadingData] = useState(false)
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
   const [loginError, setLoginError] = useState('')
-  const [loginHint] = useState('Admin: admin@dccable.com • User: user@dccable.com')
+  const [loginHint] = useState('Admin: vikdcbilling@dccablellc.com • User: your Supabase email')
   const [currentUser, setCurrentUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
   const [selectedFolderId, setSelectedFolderId] = useState(null)
@@ -821,78 +824,137 @@ const DCCableProjectManager = () => {
   const [employees] = useState([])
   const [payrollRecords] = useState([])
 
-  const adminEmails = ['admin@dccable.com']
-  const regularEmails = ['user@dccable.com']
+  const adminEmails = ['vikdcbilling@dccablellc.com']
 
-  const [folders, setFolders] = useState([
-    {
-      id: 'folder-1',
-      name: 'January Invoices',
-      ownerEmail: 'user@dccable.com',
-      payrollEntries: [],
-      invoices: [
-        {
-          id: 'invoice-1',
-          amount: 1200,
-          date: '2026-01-12',
-          createdAt: '2026-01-12',
-          paid: false,
-          paidAt: '',
-          seenByAdmin: false,
-          imageName: 'invoice-jan-12.pdf',
-          createdBy: 'user@dccable.com',
-        },
-      ],
-    },
-    {
-      id: 'folder-2',
-      name: 'Service Calls',
-      ownerEmail: 'user@dccable.com',
-      payrollEntries: [],
-      invoices: [
-        {
-          id: 'invoice-2',
-          amount: 520,
-          date: '2026-01-20',
-          createdAt: '2026-01-20',
-          paid: true,
-          paidAt: '2026-01-25',
-          seenByAdmin: true,
-          imageName: 'service-call-jan-20.jpg',
-          createdBy: 'user@dccable.com',
-        },
-      ],
-    },
-  ])
+  const [folders, setFolders] = useState([])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     setIsAuthenticated(false)
     setCurrentUser(null)
     setUserRole(null)
     setActiveView('dashboard')
     setLoginPassword('')
     setSelectedFolderId(null)
+    setFolders([])
   }
 
-  const handleLoginSubmit = (event) => {
+  const handleLoginSubmit = async (event) => {
     event.preventDefault()
     const normalizedEmail = loginEmail.trim().toLowerCase()
     if (!normalizedEmail || !loginPassword.trim()) {
       setLoginError('Email and password are required.')
       return
     }
-    const isAdmin = adminEmails.includes(normalizedEmail)
-    const isRegular = regularEmails.includes(normalizedEmail)
-    if (!isAdmin && !isRegular) {
-      setLoginError('Unknown user. Use a configured company email.')
+    setLoginError('')
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: loginPassword,
+    })
+    if (error) {
+      setLoginError(error.message)
+    }
+  }
+
+  useEffect(() => {
+    let isMounted = true
+
+    const setSessionState = (session) => {
+      if (!isMounted) return
+      if (session?.user) {
+        const email = session.user.email?.toLowerCase() || ''
+        const isAdmin = adminEmails.includes(email)
+        setCurrentUser({ id: session.user.id, email })
+        setUserRole(isAdmin ? 'admin' : 'regular')
+        setIsAuthenticated(true)
+        setActiveView(isAdmin ? 'dashboard' : 'home')
+      } else {
+        setCurrentUser(null)
+        setUserRole(null)
+        setIsAuthenticated(false)
+      }
+      setIsLoadingAuth(false)
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setSessionState(data.session)
+    })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSessionState(session)
+      },
+    )
+
+    return () => {
+      isMounted = false
+      authListener?.subscription?.unsubscribe()
+    }
+  }, [])
+
+  const loadData = async () => {
+    if (!isAuthenticated || !currentUser) return
+    setIsLoadingData(true)
+
+    const [projectsRes, invoicesRes, payrollRes] = await Promise.all([
+      supabase.from('projects').select('*').order('created_at', { ascending: false }),
+      supabase.from('invoices').select('*').order('created_at', { ascending: false }),
+      supabase.from('payroll_entries').select('*').order('created_at', { ascending: false }),
+    ])
+
+    if (projectsRes.error || invoicesRes.error || payrollRes.error) {
+      setIsLoadingData(false)
       return
     }
-    setLoginError('')
-    setCurrentUser({ email: normalizedEmail })
-    setUserRole(isAdmin ? 'admin' : 'regular')
-    setActiveView(isAdmin ? 'dashboard' : 'home')
-    setIsAuthenticated(true)
+
+    const projectsData = projectsRes.data || []
+    const invoicesDataRaw = invoicesRes.data || []
+    const payrollData = payrollRes.data || []
+
+    const invoicesData =
+      userRole === 'admin'
+        ? invoicesDataRaw
+        : invoicesDataRaw.filter((invoice) => invoice.created_by === currentUser.id)
+
+    const foldersMapped = projectsData.map((project) => {
+      const projectInvoices = invoicesData
+        .filter((invoice) => invoice.project_id === project.id)
+        .map((invoice) => ({
+          id: invoice.id,
+          amount: Number(invoice.amount || 0),
+          date: invoice.date,
+          createdAt: invoice.created_at ? invoice.created_at.slice(0, 10) : '',
+          paid: invoice.paid,
+          paidAt: invoice.paid_at,
+          seenByAdmin: invoice.seen_by_admin,
+          imageName: invoice.image_name || '',
+          createdBy: invoice.created_by_email || '',
+        }))
+
+      const projectPayroll = payrollData
+        .filter((entry) => entry.project_id === project.id)
+        .map((entry) => ({
+          id: entry.id,
+          amount: Number(entry.amount || 0),
+          createdAt: entry.created_at ? entry.created_at.slice(0, 10) : '',
+        }))
+
+      return {
+        id: project.id,
+        name: project.name,
+        ownerEmail: project.created_by_email || 'admin',
+        payrollEntries: projectPayroll,
+        invoices: projectInvoices,
+      }
+    })
+
+    setFolders(foldersMapped)
+    setIsLoadingData(false)
   }
+
+  useEffect(() => {
+    loadData()
+  }, [isAuthenticated, currentUser, userRole])
 
   const collectInvoices = (nodes) =>
     nodes.flatMap((folder) =>
@@ -912,48 +974,38 @@ const DCCableProjectManager = () => {
   const handleCreateProject = (projectName) => {
     if (!projectName.trim()) return
     const trimmedName = projectName.trim()
-    setFolders((prev) => [
-      {
-        id: `folder-${Date.now()}`,
+    const createProject = async () => {
+      await supabase.from('projects').insert({
         name: trimmedName,
-        ownerEmail: 'admin@dccable.com',
-        invoices: [],
-      },
-      ...prev,
-    ])
-    setNewProjectName('')
+        created_by: currentUser?.id,
+        created_by_email: currentUser?.email,
+      })
+      setNewProjectName('')
+      loadData()
+    }
+    createProject()
   }
-
-  const updateFolderTree = (nodes, folderId, updater) =>
-    nodes.map((folder) =>
-      folder.id === folderId ? updater(folder) : folder,
-    )
 
   const findFolderById = (nodes, folderId) =>
     nodes.find((folder) => folder.id === folderId) || null
 
-  const removeFolderById = (nodes, folderId) =>
-    nodes.filter((folder) => folder.id !== folderId)
-
   const handleAddInvoice = ({ folderId, amount, date, imageFile }) => {
     if (!amount || !date) return
-    setFolders((prev) =>
-      updateFolderTree(prev, folderId, (folder) => {
-        const today = new Date().toISOString().slice(0, 10)
-        const nextInvoice = {
-          id: `invoice-${Date.now()}`,
-          amount: Number(amount),
-          date,
-          createdAt: today,
-          paid: false,
-          paidAt: '',
-          seenByAdmin: false,
-          imageName: imageFile ? imageFile.name : '',
-          createdBy: currentUser?.email || 'unknown',
-        }
-        return { ...folder, invoices: [nextInvoice, ...folder.invoices] }
-      }),
-    )
+    const addInvoice = async () => {
+      await supabase.from('invoices').insert({
+        project_id: folderId,
+        amount: Number(amount),
+        date,
+        created_by: currentUser?.id,
+        created_by_email: currentUser?.email,
+        paid: false,
+        paid_at: null,
+        seen_by_admin: false,
+        image_name: imageFile ? imageFile.name : null,
+      })
+      loadData()
+    }
+    addInvoice()
   }
 
   const handleAddPayroll = (event) => {
@@ -961,20 +1013,16 @@ const DCCableProjectManager = () => {
     if (!payrollProjectId || !payrollAmount) return
     const amountValue = Number(payrollAmount)
     if (Number.isNaN(amountValue) || amountValue <= 0) return
-    setFolders((prev) =>
-      updateFolderTree(prev, payrollProjectId, (folder) => ({
-        ...folder,
-        payrollEntries: [
-          {
-            id: `payroll-${Date.now()}`,
-            amount: amountValue,
-            createdAt: new Date().toISOString().slice(0, 10),
-          },
-          ...(folder.payrollEntries || []),
-        ],
-      })),
-    )
-    setPayrollAmount('')
+    const addPayroll = async () => {
+      await supabase.from('payroll_entries').insert({
+        project_id: payrollProjectId,
+        amount: amountValue,
+        created_by: currentUser?.id,
+      })
+      setPayrollAmount('')
+      loadData()
+    }
+    addPayroll()
   }
 
   const handleQuickAddInvoice = (event) => {
@@ -992,56 +1040,59 @@ const DCCableProjectManager = () => {
   }
 
   const markInvoiceSeen = (folderId, invoiceId) => {
-    setFolders((prev) =>
-      updateFolderTree(prev, folderId, (folder) => ({
-        ...folder,
-        invoices: folder.invoices.map((invoice) =>
-          invoice.id === invoiceId
-            ? { ...invoice, seenByAdmin: true }
-            : invoice,
-        ),
-      })),
-    )
+    const markSeen = async () => {
+      await supabase
+        .from('invoices')
+        .update({ seen_by_admin: true })
+        .eq('id', invoiceId)
+      loadData()
+    }
+    markSeen()
   }
 
   const handleUpdateInvoice = (folderId, invoiceId, updates) => {
-    setFolders((prev) =>
-      updateFolderTree(prev, folderId, (folder) => ({
-        ...folder,
-        invoices: folder.invoices.map((invoice) =>
-          invoice.id === invoiceId ? { ...invoice, ...updates } : invoice,
-        ),
-      })),
-    )
+    const updateInvoice = async () => {
+      const updatePayload = {}
+      if (typeof updates.amount !== 'undefined') updatePayload.amount = updates.amount
+      if (typeof updates.date !== 'undefined') updatePayload.date = updates.date
+      await supabase.from('invoices').update(updatePayload).eq('id', invoiceId)
+      loadData()
+    }
+    updateInvoice()
   }
 
   const toggleInvoicePaid = (folderId, invoiceId) => {
     const today = new Date().toISOString().slice(0, 10)
-    setFolders((prev) =>
-      updateFolderTree(prev, folderId, (folder) => ({
-        ...folder,
-        invoices: folder.invoices.map((invoice) =>
-          invoice.id === invoiceId
-            ? {
-                ...invoice,
-                paid: !invoice.paid,
-                paidAt: invoice.paid ? '' : today,
-                seenByAdmin: true,
-              }
-            : invoice,
-        ),
-      })),
-    )
+    const togglePaid = async () => {
+      const invoice = findFolderById(folders, folderId)?.invoices.find(
+        (inv) => inv.id === invoiceId,
+      )
+      if (!invoice) return
+      await supabase
+        .from('invoices')
+        .update({
+          paid: !invoice.paid,
+          paid_at: invoice.paid ? null : today,
+          seen_by_admin: true,
+        })
+        .eq('id', invoiceId)
+      loadData()
+    }
+    togglePaid()
   }
 
   const handleDeleteFolder = (folderId) => {
     const folder = findFolderById(folders, folderId)
     if (!folder) return
     if (userRole !== 'admin') return
-    setFolders((prev) => removeFolderById(prev, folderId))
-    if (selectedFolderId === folderId) {
-      setSelectedFolderId(null)
+    const deleteProject = async () => {
+      await supabase.from('projects').delete().eq('id', folderId)
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId(null)
+      }
+      loadData()
     }
+    deleteProject()
   }
 
   const handleDeleteInvoice = (folderId, invoiceId) => {
@@ -1052,14 +1103,11 @@ const DCCableProjectManager = () => {
     if (userRole === 'regular' && invoice.createdBy !== currentUser?.email) {
       return
     }
-    setFolders((prev) =>
-      updateFolderTree(prev, folderId, (folderNode) => ({
-        ...folderNode,
-        invoices: folderNode.invoices.filter(
-          (invoice) => invoice.id !== invoiceId,
-        ),
-      })),
-    )
+    const deleteInvoice = async () => {
+      await supabase.from('invoices').delete().eq('id', invoiceId)
+      loadData()
+    }
+    deleteInvoice()
   }
 
   const collectFolderInvoices = (folder) => folder.invoices
@@ -1898,6 +1946,13 @@ const DCCableProjectManager = () => {
   )
 
   return (
+    <>
+      {isLoadingAuth && (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-600">
+          Loading...
+        </div>
+      )}
+      {!isLoadingAuth && (
     <div className="min-h-screen bg-gray-50">
       {!isAuthenticated && (
         <LoginView
@@ -2458,6 +2513,8 @@ const DCCableProjectManager = () => {
         </>
       )}
     </div>
+      )}
+    </>
   )
 }
 
