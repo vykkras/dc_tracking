@@ -115,10 +115,11 @@ const ProfileFolderCard = ({
   const [date, setDate] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingInvoiceId, setEditingInvoiceId] = useState(null)
   const fileInputRef = useRef(null)
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6 space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{folder.name}</h3>
@@ -164,11 +165,12 @@ const ProfileFolderCard = ({
             !invoice.paid &&
             (isAdmin || invoice.createdBy === currentUserEmail)
           const canDeleteInvoice = canEditInvoice
+          const isEditing = editingInvoiceId === invoice.id
 
           return (
           <div
             key={invoice.id}
-            className="grid grid-cols-1 md:grid-cols-6 gap-3 items-center border border-gray-200 rounded-lg p-3"
+            className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-center border border-gray-200 rounded-lg p-3"
           >
             <div>
               <p className="text-xs text-gray-500 mb-1">Amount</p>
@@ -181,7 +183,7 @@ const ProfileFolderCard = ({
                   })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                disabled={!canEditInvoice}
+                disabled={!canEditInvoice || !isEditing}
               />
             </div>
             <div>
@@ -195,7 +197,7 @@ const ProfileFolderCard = ({
                   })
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                disabled={!canEditInvoice}
+                disabled={!canEditInvoice || !isEditing}
               />
             </div>
             <div className="text-sm text-gray-600">
@@ -236,6 +238,17 @@ const ProfileFolderCard = ({
                     className="text-xs font-semibold text-blue-600 hover:text-blue-800"
                   >
                     Mark {invoice.paid ? 'Unpaid' : 'Paid'}
+                  </button>
+                )}
+                {canEditInvoice && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingInvoiceId(isEditing ? null : invoice.id)
+                    }
+                    className="text-xs font-semibold text-gray-600 hover:text-gray-800"
+                  >
+                    {isEditing ? 'Done' : 'Edit'}
                   </button>
                 )}
                 {(() => {
@@ -493,14 +506,14 @@ const AdminOverviewView = ({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Total Folders</p>
           <p className="text-3xl font-bold text-gray-900 mt-1">
             {folders.length}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Unpaid Invoices</p>
           <p className="text-3xl font-bold text-amber-600 mt-1">
             {unpaidInvoices.length}
@@ -509,7 +522,7 @@ const AdminOverviewView = ({
             ${totalUnpaidAmount.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Paid Invoices</p>
           <p className="text-3xl font-bold text-green-600 mt-1">
             {paidInvoices.length}
@@ -518,7 +531,7 @@ const AdminOverviewView = ({
             ${totalPaidAmount.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Total Invoices</p>
           <p className="text-3xl font-bold text-gray-900 mt-1">
             {filteredInvoices.length}
