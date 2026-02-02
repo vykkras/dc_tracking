@@ -103,6 +103,9 @@ const ProfileFolderCard = ({
   canEdit,
   isAdmin,
   currentUserEmail,
+  pendingDelete,
+  onRequestDelete,
+  onClearDelete,
   onAddInvoice,
   onUpdateInvoice,
   onDeleteInvoice,
@@ -235,14 +238,33 @@ const ProfileFolderCard = ({
                     Mark {invoice.paid ? 'Unpaid' : 'Paid'}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => onDeleteInvoice(folder.id, invoice.id)}
-                  className="text-xs font-semibold text-red-600 hover:text-red-800"
-                  disabled={!canDeleteInvoice}
-                >
-                  Delete
-                </button>
+                {(() => {
+                  const isConfirm =
+                    pendingDelete?.type === 'invoice' &&
+                    pendingDelete?.invoiceId === invoice.id
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canDeleteInvoice) return
+                        if (isConfirm) {
+                          onClearDelete()
+                          onDeleteInvoice(folder.id, invoice.id)
+                        } else {
+                          onRequestDelete({
+                            type: 'invoice',
+                            folderId: folder.id,
+                            invoiceId: invoice.id,
+                          })
+                        }
+                      }}
+                      className="text-xs font-semibold text-red-600 hover:text-red-800"
+                      disabled={!canDeleteInvoice}
+                    >
+                      {isConfirm ? 'Click again to delete' : 'Delete'}
+                    </button>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -681,6 +703,9 @@ const ProjectFolderList = ({
   onSelectFolder,
   onDeleteFolder,
   canDeleteFolder,
+  pendingDelete,
+  onRequestDelete,
+  onClearDelete,
 }) => (
   <div className="space-y-4">
     {folders.length === 0 && (
@@ -733,13 +758,27 @@ const ProjectFolderList = ({
         </button>
         {canDeleteFolder && (
           <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              className="text-xs font-semibold text-red-600 hover:text-red-800"
-              onClick={() => onDeleteFolder(folder.id)}
-            >
-              Delete Folder
-            </button>
+            {(() => {
+              const isConfirm =
+                pendingDelete?.type === 'project' &&
+                pendingDelete?.folderId === folder.id
+              return (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-red-600 hover:text-red-800"
+                  onClick={() => {
+                    if (isConfirm) {
+                      onClearDelete()
+                      onDeleteFolder(folder.id)
+                    } else {
+                      onRequestDelete({ type: 'project', folderId: folder.id })
+                    }
+                  }}
+                >
+                  {isConfirm ? 'Click again to delete' : 'Delete Folder'}
+                </button>
+              )
+            })()}
           </div>
         )}
       </div>
@@ -753,6 +792,9 @@ const ProjectFolderDetail = ({
   canEdit,
   isAdmin,
   currentUserEmail,
+  pendingDelete,
+  onRequestDelete,
+  onClearDelete,
   onBack,
   onAddInvoice,
   onUpdateInvoice,
@@ -786,12 +828,26 @@ const ProjectFolderDetail = ({
         Back to Folders
       </button>
       {isAdmin && (
-        <button
-          onClick={() => onDeleteFolder(folder.id)}
-          className="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-        >
-          Delete Folder
-        </button>
+        (() => {
+          const isConfirm =
+            pendingDelete?.type === 'project' &&
+            pendingDelete?.folderId === folder.id
+          return (
+            <button
+              onClick={() => {
+                if (isConfirm) {
+                  onClearDelete()
+                  onDeleteFolder(folder.id)
+                } else {
+                  onRequestDelete({ type: 'project', folderId: folder.id })
+                }
+              }}
+              className="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
+            >
+              {isConfirm ? 'Click again to delete' : 'Delete Folder'}
+            </button>
+          )
+        })()
       )}
       <span
         className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClass}`}
@@ -807,6 +863,9 @@ const ProjectFolderDetail = ({
       canEdit={canEdit}
       isAdmin={isAdmin}
       currentUserEmail={currentUserEmail}
+      pendingDelete={pendingDelete}
+      onRequestDelete={onRequestDelete}
+      onClearDelete={onClearDelete}
       onAddInvoice={onAddInvoice}
       onUpdateInvoice={onUpdateInvoice}
       onDeleteInvoice={onDeleteInvoice}
@@ -817,7 +876,7 @@ const ProjectFolderDetail = ({
 
 const DCCableProjectManager = () => {
   const [activeView, setActiveView] = useState('dashboard')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -842,6 +901,7 @@ const DCCableProjectManager = () => {
   const [quickFile, setQuickFile] = useState(null)
   const [payrollProjectId, setPayrollProjectId] = useState('')
   const [payrollAmount, setPayrollAmount] = useState('')
+  const [pendingDelete, setPendingDelete] = useState(null)
 
   // Empty state - will be populated from your backend
   const [projects] = useState([])
@@ -920,6 +980,31 @@ const DCCableProjectManager = () => {
       authListener?.subscription?.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (window.innerWidth >= 1024) {
+      setSidebarOpen(true)
+    }
+  }, [])
+
+  const requestDelete = (payload) => {
+    setPendingDelete(payload)
+    window.setTimeout(() => {
+      setPendingDelete((current) => {
+        if (!current) return current
+        if (JSON.stringify(current) === JSON.stringify(payload)) {
+          return null
+        }
+        return current
+      })
+    }, 4000)
+  }
+
+  const closeSidebarIfMobile = () => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
+    }
+  }
 
   const loadData = async () => {
     if (!isAuthenticated || !currentUser) return
@@ -2149,6 +2234,7 @@ const DCCableProjectManager = () => {
                 onClick={() => {
                   setActiveView('dashboard')
                   setSelectedFolderId(null)
+                  closeSidebarIfMobile()
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   activeView === 'dashboard'
@@ -2166,6 +2252,7 @@ const DCCableProjectManager = () => {
                 onClick={() => {
                   setActiveView('payroll')
                   setSelectedFolderId(null)
+                  closeSidebarIfMobile()
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   activeView === 'payroll'
@@ -2183,6 +2270,7 @@ const DCCableProjectManager = () => {
                 onClick={() => {
                   setActiveView('home')
                   setSelectedFolderId(null)
+                  closeSidebarIfMobile()
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   activeView === 'home'
@@ -2199,6 +2287,7 @@ const DCCableProjectManager = () => {
               onClick={() => {
                 setActiveView('projects')
                 setSelectedFolderId(null)
+                closeSidebarIfMobile()
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                 activeView === 'projects'
@@ -2274,6 +2363,14 @@ const DCCableProjectManager = () => {
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800"
               >
                 Clear filters
+              </button>
+            </div>
+            <div className="pt-4 mt-4 border-t border-gray-200">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Logout
               </button>
             </div>
           </nav>
@@ -2453,6 +2550,9 @@ const DCCableProjectManager = () => {
                       canEdit={canEdit}
                       isAdmin={userRole === 'admin'}
                       currentUserEmail={currentUser?.email || ''}
+                      pendingDelete={pendingDelete}
+                      onRequestDelete={requestDelete}
+                      onClearDelete={() => setPendingDelete(null)}
                       onBack={() => {
                         setSelectedFolderId(null)
                       }}
@@ -2556,6 +2656,9 @@ const DCCableProjectManager = () => {
                       }}
                       onDeleteFolder={handleDeleteFolder}
                       canDeleteFolder={userRole === 'admin'}
+                      pendingDelete={pendingDelete}
+                      onRequestDelete={requestDelete}
+                      onClearDelete={() => setPendingDelete(null)}
                     />
                   </div>
                 )
