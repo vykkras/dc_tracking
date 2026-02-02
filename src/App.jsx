@@ -195,9 +195,18 @@ const ProfileFolderCard = ({
             </div>
             <div className="text-sm text-gray-600">
               <p className="text-xs text-gray-500 mb-1">Image</p>
-              <p className="truncate">
-                {invoice.imageName || 'No file'}
-              </p>
+              {invoice.imageUrl ? (
+                <a
+                  href={invoice.imageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-800"
+                >
+                  View file
+                </a>
+              ) : (
+                <p className="truncate">{invoice.imageName || 'No file'}</p>
+              )}
             </div>
             <div className="text-xs text-gray-500">
               Added by {invoice.createdBy}
@@ -927,9 +936,10 @@ const DCCableProjectManager = () => {
           paid: invoice.paid,
           paidAt: invoice.paid_at,
           seenByAdmin: invoice.seen_by_admin,
-          imageName: invoice.image_name || '',
-          createdBy: invoice.created_by_email || '',
-        }))
+            imageName: invoice.image_name || '',
+            imageUrl: invoice.image_url || '',
+            createdBy: invoice.created_by_email || '',
+          }))
 
       const projectPayroll = payrollData
         .filter((entry) => entry.project_id === project.id)
@@ -989,9 +999,27 @@ const DCCableProjectManager = () => {
   const findFolderById = (nodes, folderId) =>
     nodes.find((folder) => folder.id === folderId) || null
 
+  const uploadInvoiceFile = async (file) => {
+    if (!file) return { path: null, publicUrl: null }
+    const ext = file.name.split('.').pop()
+    const fileName = `${crypto.randomUUID()}.${ext}`
+    const filePath = `${currentUser?.id}/${fileName}`
+    const { error } = await supabase.storage
+      .from('invoice-files')
+      .upload(filePath, file, { upsert: false })
+    if (error) {
+      return { path: null, publicUrl: null }
+    }
+    const { data } = supabase.storage
+      .from('invoice-files')
+      .getPublicUrl(filePath)
+    return { path: filePath, publicUrl: data?.publicUrl || null }
+  }
+
   const handleAddInvoice = ({ folderId, amount, date, imageFile }) => {
     if (!amount || !date) return
     const addInvoice = async () => {
+      const uploadResult = await uploadInvoiceFile(imageFile)
       await supabase.from('invoices').insert({
         project_id: folderId,
         amount: Number(amount),
@@ -1002,6 +1030,8 @@ const DCCableProjectManager = () => {
         paid_at: null,
         seen_by_admin: false,
         image_name: imageFile ? imageFile.name : null,
+        image_path: uploadResult.path,
+        image_url: uploadResult.publicUrl,
       })
       loadData()
     }
