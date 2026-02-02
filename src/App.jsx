@@ -112,7 +112,7 @@ const ProfileFolderCard = ({
   onToggleInvoicePaid,
 }) => {
   const [amount, setAmount] = useState('')
-  const [date] = useState('')
+  const [expectedPayment, setExpectedPayment] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null)
@@ -221,6 +221,9 @@ const ProfileFolderCard = ({
                 {invoice.paid ? 'Paid' : 'Unpaid'}
               </span>
             </div>
+            <div className="text-xs text-gray-500">
+              Expected: {invoice.expectedPaymentDate || '—'}
+            </div>
             <div className="flex justify-end">
               <div className="flex items-center gap-3">
                 {isAdmin && (
@@ -287,9 +290,11 @@ const ProfileFolderCard = ({
             await onAddInvoice({
               folderId: folder.id,
               amount,
+              expectedPaymentDate: expectedPayment || null,
               imageFile,
             })
             setAmount('')
+            setExpectedPayment('')
             setImageFile(null)
             if (fileInputRef.current) {
               fileInputRef.current.value = ''
@@ -317,6 +322,18 @@ const ProfileFolderCard = ({
             <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
               {new Date().toLocaleDateString()}
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              Expected Payment
+            </label>
+            <input
+              type="date"
+              value={expectedPayment}
+              onChange={(event) => setExpectedPayment(event.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              disabled={isSubmitting}
+            />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -905,6 +922,7 @@ const DCCableProjectManager = () => {
   const [quickProjectId, setQuickProjectId] = useState('')
   const [quickAmount, setQuickAmount] = useState('')
   const [quickFile, setQuickFile] = useState(null)
+  const [quickExpectedPayment, setQuickExpectedPayment] = useState('')
   const [payrollProjectId, setPayrollProjectId] = useState('')
   const [payrollAmount, setPayrollAmount] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
@@ -1049,6 +1067,7 @@ const DCCableProjectManager = () => {
           seenByAdmin: invoice.seen_by_admin,
             imageName: invoice.image_name || '',
             imageUrl: invoice.image_url || '',
+            expectedPaymentDate: invoice.expected_payment_date || '',
             createdBy: invoice.created_by_email || '',
           }))
 
@@ -1088,8 +1107,14 @@ const DCCableProjectManager = () => {
     )
 
   const allInvoices = collectInvoices(folders)
+  const todayDate = new Date().toISOString().slice(0, 10)
   const unseenInvoices = allInvoices.filter(
     (invoice) => !invoice.seenByAdmin,
+  )
+  const dueTodayInvoices = allInvoices.filter(
+    (invoice) =>
+      invoice.expectedPaymentDate &&
+      invoice.expectedPaymentDate === todayDate,
   )
 
   const handleCreateProject = (projectName) => {
@@ -1127,7 +1152,12 @@ const DCCableProjectManager = () => {
     return { path: filePath, publicUrl: data?.publicUrl || null }
   }
 
-  const handleAddInvoice = async ({ folderId, amount, imageFile }) => {
+  const handleAddInvoice = async ({
+    folderId,
+    amount,
+    expectedPaymentDate,
+    imageFile,
+  }) => {
     if (!amount) return
     const today = new Date().toISOString().slice(0, 10)
     const uploadResult = await uploadInvoiceFile(imageFile)
@@ -1143,6 +1173,7 @@ const DCCableProjectManager = () => {
       image_name: imageFile ? imageFile.name : null,
       image_path: uploadResult.path,
       image_url: uploadResult.publicUrl,
+      expected_payment_date: expectedPaymentDate,
     })
     loadData()
   }
@@ -1170,9 +1201,11 @@ const DCCableProjectManager = () => {
     handleAddInvoice({
       folderId: quickProjectId,
       amount: quickAmount,
+      expectedPaymentDate: quickExpectedPayment || null,
       imageFile: quickFile,
     })
     setQuickAmount('')
+    setQuickExpectedPayment('')
     setQuickFile(null)
   }
 
@@ -2152,9 +2185,9 @@ const DCCableProjectManager = () => {
                     }}
                   >
                     <Bell size={20} />
-                    {unseenInvoices.length > 0 && (
+                    {(unseenInvoices.length + dueTodayInvoices.length) > 0 && (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-600 text-white text-[10px] rounded-full flex items-center justify-center px-1">
-                        {unseenInvoices.length}
+                        {unseenInvoices.length + dueTodayInvoices.length}
                       </span>
                     )}
                   </button>
@@ -2171,6 +2204,37 @@ const DCCableProjectManager = () => {
                           Close
                         </button>
                       </div>
+                      {dueTodayInvoices.length > 0 && (
+                        <div className="mb-3">
+                          <p className="text-xs font-semibold text-amber-600 mb-2">
+                            Due Today
+                          </p>
+                          <div className="space-y-2">
+                            {dueTodayInvoices.map((invoice) => (
+                              <button
+                                key={`due-${invoice.id}`}
+                                type="button"
+                                onClick={() => {
+                                  setActiveView('projects')
+                                  setSelectedFolderId(invoice.folderId)
+                                  setShowNotifications(false)
+                                }}
+                                className="w-full text-left border border-amber-200 rounded-lg p-3 text-sm hover:border-amber-400 hover:bg-amber-50"
+                              >
+                                <p className="font-semibold text-gray-900">
+                                  {invoice.folderName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {invoice.createdBy} • ${invoice.amount}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  Expected {invoice.expectedPaymentDate}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {unseenInvoices.length === 0 ? (
                         <p className="text-sm text-gray-500">
                           No new invoices.
@@ -2625,6 +2689,19 @@ const DCCableProjectManager = () => {
                             <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
                               {new Date().toLocaleDateString()}
                             </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Expected Payment
+                            </label>
+                            <input
+                              type="date"
+                              value={quickExpectedPayment}
+                              onChange={(event) =>
+                                setQuickExpectedPayment(event.target.value)
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            />
                           </div>
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1">
