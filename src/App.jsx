@@ -709,7 +709,6 @@ const ProjectFolderList = ({
             <button
               type="button"
               className="text-xs font-semibold text-red-600 hover:text-red-800"
-              disabled={paidCount > 0}
               onClick={() => onDeleteFolder(folder.id)}
             >
               Delete Folder
@@ -1038,8 +1037,6 @@ const DCCableProjectManager = () => {
   const handleDeleteFolder = (folderId) => {
     const folder = findFolderById(folders, folderId)
     if (!folder) return
-    const hasPaidInvoices = folder.invoices.some((invoice) => invoice.paid)
-    if (hasPaidInvoices) return
     if (userRole !== 'admin') return
     setFolders((prev) => removeFolderById(prev, folderId))
     if (selectedFolderId === folderId) {
