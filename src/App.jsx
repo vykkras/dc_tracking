@@ -833,7 +833,10 @@ const DCCableProjectManager = () => {
   const [employees] = useState([])
   const [payrollRecords] = useState([])
 
-  const adminEmails = ['vikdcbilling@dccablellc.com']
+  const adminEmails = [
+    'vikdcbilling@dccablellc.com',
+    'ernestofons@dccablellc.com',
+  ]
 
   const [folders, setFolders] = useState([])
 
