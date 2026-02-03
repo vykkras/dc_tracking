@@ -1196,6 +1196,7 @@ const DCCableProjectManager = () => {
   const adminEmails = [
     'vikdcbilling@dccablellc.com',
     'ernestofons@dccablellc.com',
+    'raulddl@dccablellc.com',
   ]
 
   const [folders, setFolders] = useState([])
