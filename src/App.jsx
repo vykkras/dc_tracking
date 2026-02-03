@@ -246,33 +246,21 @@ const ProfileFolderCard = ({
                     {isEditing ? 'Done' : 'Edit'}
                   </button>
                 )}
-                {(() => {
-                  const isConfirm =
-                    pendingDelete?.type === 'invoice' &&
-                    pendingDelete?.invoiceId === invoice.id
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!canDeleteInvoice) return
-                        if (isConfirm) {
-                          onClearDelete()
-                          onDeleteInvoice(folder.id, invoice.id)
-                        } else {
-                          onRequestDelete({
-                            type: 'invoice',
-                            folderId: folder.id,
-                            invoiceId: invoice.id,
-                          })
-                        }
-                      }}
-                      className="text-xs font-semibold text-red-600 hover:text-red-800"
-                      disabled={!canDeleteInvoice}
-                    >
-                      {isConfirm ? 'Click again to delete' : 'Delete'}
-                    </button>
-                  )
-                })()}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!canDeleteInvoice) return
+                    onRequestDelete({
+                      type: 'invoice',
+                      folderId: folder.id,
+                      invoiceId: invoice.id,
+                    })
+                  }}
+                  className="text-xs font-semibold text-red-600 hover:text-red-800"
+                  disabled={!canDeleteInvoice}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -782,27 +770,13 @@ const ProjectFolderList = ({
         </button>
         {canDeleteFolder && (
           <div className="mt-3 flex justify-end">
-            {(() => {
-              const isConfirm =
-                pendingDelete?.type === 'project' &&
-                pendingDelete?.folderId === folder.id
-              return (
-                <button
-                  type="button"
-                  className="text-xs font-semibold text-red-600 hover:text-red-800"
-                  onClick={() => {
-                    if (isConfirm) {
-                      onClearDelete()
-                      onDeleteFolder(folder.id)
-                    } else {
-                      onRequestDelete({ type: 'project', folderId: folder.id })
-                    }
-                  }}
-                >
-                  {isConfirm ? 'Click again to delete' : 'Delete Folder'}
-                </button>
-              )
-            })()}
+            <button
+              type="button"
+              className="text-xs font-semibold text-red-600 hover:text-red-800"
+              onClick={() => onRequestDelete({ type: 'project', folderId: folder.id })}
+            >
+              Delete Folder
+            </button>
           </div>
         )}
       </div>
@@ -926,6 +900,7 @@ const DCCableProjectManager = () => {
   const [payrollProjectId, setPayrollProjectId] = useState('')
   const [payrollAmount, setPayrollAmount] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   // Empty state - will be populated from your backend
   const [projects] = useState([])
@@ -1013,15 +988,7 @@ const DCCableProjectManager = () => {
 
   const requestDelete = (payload) => {
     setPendingDelete(payload)
-    window.setTimeout(() => {
-      setPendingDelete((current) => {
-        if (!current) return current
-        if (JSON.stringify(current) === JSON.stringify(payload)) {
-          return null
-        }
-        return current
-      })
-    }, 4000)
+    setShowDeleteModal(true)
   }
 
   const closeSidebarIfMobile = () => {
@@ -2137,6 +2104,48 @@ const DCCableProjectManager = () => {
       )}
       {isAuthenticated && (
         <>
+      {showDeleteModal && pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Confirm delete
+            </h3>
+            <p className="text-sm text-gray-600 mt-2">
+              Are you sure you want to delete this{' '}
+              {pendingDelete.type === 'project' ? 'project' : 'invoice'}?
+              This action cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setPendingDelete(null)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                onClick={() => {
+                  if (pendingDelete.type === 'project') {
+                    handleDeleteFolder(pendingDelete.folderId)
+                  } else if (pendingDelete.type === 'invoice') {
+                    handleDeleteInvoice(
+                      pendingDelete.folderId,
+                      pendingDelete.invoiceId,
+                    )
+                  }
+                  setShowDeleteModal(false)
+                  setPendingDelete(null)
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showUploadModal && <UploadModal />}
 
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
