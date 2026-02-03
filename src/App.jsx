@@ -588,13 +588,13 @@ const AdminOverviewView = ({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Total Projects</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600">Total Projects</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
             {folders.length}
           </p>
-          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+          <div className="mt-2 text-[11px] sm:text-xs text-gray-500 space-y-0.5">
             <p>
               Active projects:{' '}
               {folders.filter((folder) => folder.isActive).length}
@@ -605,27 +605,27 @@ const AdminOverviewView = ({
             </p>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Unpaid Invoices</p>
-          <p className="text-3xl font-bold text-amber-600 mt-1">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600">Unpaid Invoices</p>
+          <p className="text-2xl sm:text-3xl font-bold text-amber-600 mt-1">
             {unpaidInvoices.length}
           </p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-[11px] sm:text-xs text-gray-500 mt-1">
             ${totalUnpaidAmount.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Paid Invoices</p>
-          <p className="text-3xl font-bold text-green-600 mt-1">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600">Paid Invoices</p>
+          <p className="text-2xl sm:text-3xl font-bold text-green-600 mt-1">
             {paidInvoices.length}
           </p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-[11px] sm:text-xs text-gray-500 mt-1">
             ${totalPaidAmount.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Total Invoices</p>
-          <p className="text-3xl font-bold text-gray-900 mt-1">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4">
+          <p className="text-xs sm:text-sm text-gray-600">Total Invoices</p>
+          <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">
             {filteredInvoices.length}
           </p>
         </div>
@@ -2846,7 +2846,7 @@ const DCCableProjectManager = () => {
                   onChange={(event) =>
                     setFilterCreatedDate(event.target.value)
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
               <div>
@@ -2857,7 +2857,7 @@ const DCCableProjectManager = () => {
                   type="date"
                   value={filterPaidDate}
                   onChange={(event) => setFilterPaidDate(event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
               <div>
@@ -2881,7 +2881,7 @@ const DCCableProjectManager = () => {
                       onChange={(event) =>
                         setFilterCreatedFrom(event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
                   </div>
                   <div>
@@ -2894,7 +2894,7 @@ const DCCableProjectManager = () => {
                       onChange={(event) =>
                         setFilterCreatedTo(event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
                   </div>
                 </>
