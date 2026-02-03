@@ -26,10 +26,10 @@ const LoginView = ({
   onPasswordChange,
   onSubmit,
 }) => (
-  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50 px-6">
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-amber-50 px-6">
     <div className="w-full max-w-md bg-white border border-gray-200 shadow-xl rounded-2xl p-8">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-xl">
+        <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center text-white font-bold text-xl">
           DC
         </div>
         <div>
@@ -45,7 +45,7 @@ const LoginView = ({
         Use your company credentials to continue.
       </p>
       {loginHint && (
-        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+        <div className="mb-4 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
           {loginHint}
         </div>
       )}
@@ -60,7 +60,7 @@ const LoginView = ({
             value={loginEmail}
             onChange={onEmailChange}
             placeholder="name@dccable.com"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             autoComplete="username"
           />
         </div>
@@ -73,7 +73,7 @@ const LoginView = ({
             value={loginPassword}
             onChange={onPasswordChange}
             placeholder="••••••••"
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
             autoComplete="current-password"
           />
         </div>
@@ -84,7 +84,7 @@ const LoginView = ({
         )}
         <button
           type="submit"
-          className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          className="w-full py-2.5 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
         >
           Sign In
         </button>
@@ -101,6 +101,7 @@ const LoginView = ({
 const ProfileFolderCard = ({
   folder,
   canEdit,
+  canAddInvoice,
   isAdmin,
   currentUserEmail,
   pendingDelete,
@@ -108,14 +109,18 @@ const ProfileFolderCard = ({
   onClearDelete,
   onAddInvoice,
   onUpdateInvoice,
+  onAddInvoiceFile,
+  onDeleteInvoiceFile,
   onDeleteInvoice,
   onToggleInvoicePaid,
+  onSelectInvoice,
 }) => {
   const [amount, setAmount] = useState('')
   const [expectedPayment, setExpectedPayment] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null)
+  const [showNewForm, setShowNewForm] = useState(false)
   const fileInputRef = useRef(null)
 
   return (
@@ -124,6 +129,11 @@ const ProfileFolderCard = ({
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{folder.name}</h3>
           <p className="text-xs text-gray-500">{folder.ownerEmail}</p>
+          {!folder.isActive && (
+            <p className="mt-1 text-xs font-semibold text-red-600">
+              Inactive project
+            </p>
+          )}
         </div>
         {(() => {
           const paidCount = folder.invoices.filter(
@@ -156,7 +166,7 @@ const ProfileFolderCard = ({
       <div className="space-y-3">
         {folder.invoices.length === 0 && (
           <p className="text-sm text-gray-500">
-            No invoices in this folder yet.
+            No invoices in this project yet.
           </p>
         )}
         {folder.invoices.map((invoice) => {
@@ -166,193 +176,266 @@ const ProfileFolderCard = ({
             (isAdmin || invoice.createdBy === currentUserEmail)
           const canDeleteInvoice = canEditInvoice
           const isEditing = editingInvoiceId === invoice.id
+          const files = invoice.files || []
+          const legacyCount = invoice.imageUrl ? 1 : 0
+          const fileCount = files.length + legacyCount
 
           return (
-          <div
-            key={invoice.id}
-            className="grid grid-cols-1 sm:grid-cols-6 gap-3 items-center border border-gray-200 rounded-lg p-3"
-          >
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Amount</p>
-              <input
-                type="number"
-                value={invoice.amount}
-                onChange={(event) =>
-                  onUpdateInvoice(folder.id, invoice.id, {
-                    amount: Number(event.target.value || 0),
-                  })
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                disabled={!canEditInvoice || !isEditing}
-              />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Date</p>
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
-                {invoice.date}
-              </div>
-            </div>
-            <div className="text-sm text-gray-600">
-              <p className="text-xs text-gray-500 mb-1">Image</p>
-              {invoice.imageUrl ? (
-                <a
-                  href={invoice.imageUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 hover:text-blue-800"
-                >
-                  View file
-                </a>
+            <div
+              key={invoice.id}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm space-y-2"
+            >
+              {!isEditing ? (
+                <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_140px_1fr_120px_1fr] gap-2 items-center">
+                  <div>
+                    <div className="text-xs text-gray-500">Amount</div>
+                    <div className="text-sm text-gray-900">
+                      ${Number(invoice.amount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Created</div>
+                    <div className="text-sm text-gray-700">{invoice.date}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Expected</div>
+                    <div className="text-sm text-gray-700">
+                      {invoice.expectedPaymentDate || '—'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Added by</div>
+                    <div className="text-sm text-gray-700">
+                      {invoice.createdBy}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Image</div>
+                    <p className="text-sm text-gray-700">
+                      {fileCount} file{fileCount !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                          invoice.paid
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {invoice.paid ? 'Paid' : 'Unpaid'}
+                      </span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onToggleInvoicePaid(folder.id, invoice.id)
+                          }
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                        >
+                          Mark {invoice.paid ? 'Unpaid' : 'Paid'}
+                        </button>
+                      )}
+                      {canEditInvoice && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingInvoiceId(invoice.id)
+                            onSelectInvoice?.(invoice.id)
+                          }}
+                          className="text-xs font-semibold text-gray-600 hover:text-gray-800"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canDeleteInvoice) return
+                        onRequestDelete({
+                          type: 'invoice',
+                          folderId: folder.id,
+                          invoiceId: invoice.id,
+                        })
+                      }}
+                      className="text-xs font-semibold text-red-600 hover:text-red-800"
+                      disabled={!canDeleteInvoice}
+                    >
+                      Delete
+                    </button>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <p className="truncate">{invoice.imageName || 'No file'}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Amount
+                    </label>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      pattern="^[0-9]*\\.?[0-9]*$"
+                      value={invoice.amount}
+                      onChange={(event) =>
+                        onUpdateInvoice(folder.id, invoice.id, {
+                          amount: Number(event.target.value || 0),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Expected Payment
+                    </label>
+                    <input
+                      type="date"
+                      value={invoice.expectedPaymentDate || ''}
+                      onChange={(event) =>
+                        onUpdateInvoice(folder.id, invoice.id, {
+                          expectedPaymentDate: event.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingInvoiceId(null)
+                        onSelectInvoice?.(null)
+                      }}
+                      className="px-3 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingInvoiceId(null)
+                        onSelectInvoice?.(null)
+                      }}
+                      className="px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
-            <div className="text-xs text-gray-500">
-              Added by {invoice.createdBy}
-            </div>
-            <div>
-              <span
-                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
-                  invoice.paid
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                {invoice.paid ? 'Paid' : 'Unpaid'}
-              </span>
-            </div>
-            <div className="text-xs text-gray-500">
-              Expected: {invoice.expectedPaymentDate || '—'}
-            </div>
-            <div className="flex justify-end">
-              <div className="flex items-center gap-3">
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => onToggleInvoicePaid(folder.id, invoice.id)}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    Mark {invoice.paid ? 'Unpaid' : 'Paid'}
-                  </button>
-                )}
-                {canEditInvoice && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setEditingInvoiceId(isEditing ? null : invoice.id)
-                    }
-                    className="text-xs font-semibold text-gray-600 hover:text-gray-800"
-                  >
-                    {isEditing ? 'Done' : 'Edit'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!canDeleteInvoice) return
-                    onRequestDelete({
-                      type: 'invoice',
-                      folderId: folder.id,
-                      invoiceId: invoice.id,
-                    })
-                  }}
-                  className="text-xs font-semibold text-red-600 hover:text-red-800"
-                  disabled={!canDeleteInvoice}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        )
+          )
         })}
       </div>
 
       {canEdit && (
-        <form
-          className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
-          onSubmit={async (event) => {
-            event.preventDefault()
-            if (!amount) return
-            setIsSubmitting(true)
-            await onAddInvoice({
-              folderId: folder.id,
-              amount,
-              expectedPaymentDate: expectedPayment || null,
-              imageFile,
-            })
-            setAmount('')
-            setExpectedPayment('')
-            setImageFile(null)
-            if (fileInputRef.current) {
-              fileInputRef.current.value = ''
-            }
-            setIsSubmitting(false)
-          }}
-        >
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Date
-            </label>
-            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
-              {new Date().toLocaleDateString()}
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Expected Payment
-            </label>
-            <input
-              type="date"
-              value={expectedPayment}
-              onChange={(event) => setExpectedPayment(event.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              disabled={isSubmitting}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">
-              Invoice Image
-            </label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,.pdf"
-              onChange={(event) =>
-                setImageFile(event.target.files?.[0] || null)
-              }
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:bg-gray-50"
-              disabled={isSubmitting}
+        <div className="space-y-3">
+          {canAddInvoice ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowNewForm((prev) => !prev)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                {showNewForm ? 'Cancel' : 'New Invoice'}
+              </button>
+              {showNewForm && (
+            <form
+              className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+              onSubmit={async (event) => {
+                event.preventDefault()
+                if (!amount) return
+                setIsSubmitting(true)
+                await onAddInvoice({
+                  folderId: folder.id,
+                  amount,
+                  expectedPaymentDate: expectedPayment || null,
+                  imageFile,
+                })
+                setAmount('')
+                setExpectedPayment('')
+                setImageFile(null)
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = ''
+                }
+                setIsSubmitting(false)
+                setShowNewForm(false)
+              }}
             >
-              {imageFile ? imageFile.name : 'Upload PDF / Image'}
-            </button>
-          </div>
-          <button
-            type="submit"
-            className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? 'Adding...' : 'Add Invoice'}
-          </button>
-        </form>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Amount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Date
+                </label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
+                  {new Date().toLocaleDateString()}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Expected Payment
+                </label>
+                <input
+                  type="date"
+                  value={expectedPayment}
+                  onChange={(event) => setExpectedPayment(event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  disabled={isSubmitting}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Invoice Image
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(event) =>
+                    setImageFile(event.target.files?.[0] || null)
+                  }
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  {imageFile ? imageFile.name : 'Upload PDF / Image'}
+                </button>
+              </div>
+              <button
+                type="submit"
+                className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Adding...' : 'Add Invoice'}
+              </button>
+            </form>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-gray-500">
+              This project is inactive. New invoices are disabled until an admin
+              reactivates it.
+            </p>
+          )}
+        </div>
       )}
 
       {!canEdit && (
@@ -421,13 +504,20 @@ const AdminOverviewView = ({
   totalPaidAmount,
   totalUnpaidAmount,
   onSelectProject,
-  projectFilterText,
+  projectFilterId,
 }) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const totalOverdueAmount = filteredInvoices
+    .filter(
+      (invoice) =>
+        !invoice.paid &&
+        invoice.expectedPaymentDate &&
+        invoice.expectedPaymentDate < today,
+    )
+    .reduce((sum, invoice) => sum + invoice.amount, 0)
   const projectList = folders.filter((folder) => {
-    if (!projectFilterText.trim()) return true
-    return folder.name
-      .toLowerCase()
-      .includes(projectFilterText.trim().toLowerCase())
+    if (!projectFilterId) return true
+    return folder.id === projectFilterId
   })
 
   const filteredProjectList =
@@ -454,14 +544,14 @@ const AdminOverviewView = ({
     const total = paid + unpaid
     const color = [
       '#2563eb',
-      '#0ea5e9',
-      '#14b8a6',
-      '#22c55e',
-      '#f59e0b',
+      '#16a34a',
       '#f97316',
-      '#ef4444',
-      '#8b5cf6',
-      '#ec4899',
+      '#dc2626',
+      '#7c3aed',
+      '#0891b2',
+      '#eab308',
+      '#db2777',
+      '#0f172a',
     ][index % 9]
       return {
         id: folder.id,
@@ -500,10 +590,20 @@ const AdminOverviewView = ({
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-          <p className="text-sm text-gray-600">Total Folders</p>
+          <p className="text-sm text-gray-600">Total Projects</p>
           <p className="text-3xl font-bold text-gray-900 mt-1">
             {folders.length}
           </p>
+          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+            <p>
+              Active projects:{' '}
+              {folders.filter((folder) => folder.isActive).length}
+            </p>
+            <p>
+              Inactive projects:{' '}
+              {folders.filter((folder) => !folder.isActive).length}
+            </p>
+          </div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <p className="text-sm text-gray-600">Unpaid Invoices</p>
@@ -536,6 +636,24 @@ const AdminOverviewView = ({
           Payment Status Overview
         </h3>
         <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>Overdue (unpaid)</span>
+            <span>${totalOverdueAmount.toLocaleString()}</span>
+          </div>
+          <div className="h-3 rounded-full bg-red-100">
+            <div
+              className="h-3 rounded-full bg-red-500"
+              style={{
+                width: `${
+                  totalPaidAmount + totalUnpaidAmount === 0
+                    ? 0
+                    : (totalOverdueAmount /
+                        (totalPaidAmount + totalUnpaidAmount)) *
+                      100
+                }%`,
+              }}
+            />
+          </div>
           <div>
             <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
               <span>Unpaid</span>
@@ -620,7 +738,7 @@ const AdminOverviewView = ({
               >
                 <div className="flex items-center gap-2">
                   <span
-                    className="w-2.5 h-2.5 rounded-full"
+                    className="w-4 h-4 rounded-full"
                     style={{ backgroundColor: project.color }}
                   />
                   <div>
@@ -703,8 +821,8 @@ const RegularHomeView = ({ currentUser }) => (
         Welcome back{currentUser ? `, ${currentUser.email}` : ''}.
       </h2>
       <p className="text-sm text-gray-600">
-        Use the Projects tab to manage your invoice folders. You can edit
-        invoices while a folder is unpaid.
+        Use the Projects tab to manage your invoices. You can edit invoices
+        while a project has unpaid items.
       </p>
     </div>
   </div>
@@ -715,6 +833,8 @@ const ProjectFolderList = ({
   onSelectFolder,
   onDeleteFolder,
   canDeleteFolder,
+  isAdmin,
+  onToggleProjectActive,
   pendingDelete,
   onRequestDelete,
   onClearDelete,
@@ -722,7 +842,7 @@ const ProjectFolderList = ({
   <div className="space-y-4">
     {folders.length === 0 && (
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500">
-        No folders yet. Create one to start tracking invoices.
+        No projects yet. Create one to start tracking invoices.
       </div>
     )}
     {folders.map((folder) => {
@@ -757,26 +877,49 @@ const ProjectFolderList = ({
                 {folder.name}
               </h3>
               <p className="text-xs text-gray-500">{folder.ownerEmail}</p>
+              {!folder.isActive && (
+                <p className="mt-1 text-xs font-semibold text-red-600">
+                  Inactive project
+                </p>
+              )}
             </div>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClass}`}
-            >
-              {statusLabel}
-            </span>
+            <div className="flex flex-col items-end gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClass}`}
+              >
+                {statusLabel}
+              </span>
+              {!folder.isActive && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
+                  Inactive
+                </span>
+              )}
+            </div>
           </div>
           <div className="mt-3 text-sm text-gray-600">
             {folder.invoices.length} invoices
           </div>
         </button>
-        {canDeleteFolder && (
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              className="text-xs font-semibold text-red-600 hover:text-red-800"
-              onClick={() => onRequestDelete({ type: 'project', folderId: folder.id })}
-            >
-              Delete Folder
-            </button>
+        {(canDeleteFolder || isAdmin) && (
+          <div className="mt-3 flex flex-wrap justify-end gap-3">
+            {isAdmin && (
+              <button
+                type="button"
+                className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                onClick={() => onToggleProjectActive?.(folder.id, folder.isActive)}
+              >
+                {folder.isActive ? 'Mark Inactive' : 'Mark Active'}
+              </button>
+            )}
+            {canDeleteFolder && (
+              <button
+                type="button"
+                className="text-xs font-semibold text-red-600 hover:text-red-800"
+                onClick={() => onRequestDelete({ type: 'project', folderId: folder.id })}
+              >
+                Delete Project
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -796,9 +939,15 @@ const ProjectFolderDetail = ({
   onBack,
   onAddInvoice,
   onUpdateInvoice,
+  onAddInvoiceFile,
+  onDeleteInvoiceFile,
+  onDeleteLegacyInvoiceFile,
   onDeleteFolder,
   onDeleteInvoice,
   onToggleInvoicePaid,
+  onToggleProjectActive,
+  selectedInvoiceId,
+  onSelectInvoice,
 }) => (
   <div className="space-y-4">
     {(() => {
@@ -818,57 +967,188 @@ const ProjectFolderDetail = ({
             : 'bg-green-100 text-green-700'
 
       return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <button
         onClick={onBack}
         className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
       >
-        Back to Folders
+        Back to Projects
       </button>
-      {isAdmin && (
-        (() => {
-          const isConfirm =
-            pendingDelete?.type === 'project' &&
-            pendingDelete?.folderId === folder.id
-          return (
-            <button
-              onClick={() => {
-                if (isConfirm) {
-                  onClearDelete()
-                  onDeleteFolder(folder.id)
-                } else {
-                  onRequestDelete({ type: 'project', folderId: folder.id })
-                }
-              }}
-              className="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
-            >
-              {isConfirm ? 'Click again to delete' : 'Delete Folder'}
-            </button>
-          )
-        })()
-      )}
-      <span
-        className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClass}`}
-      >
-        {statusLabel}
-      </span>
+      <div className="flex flex-wrap items-center gap-2">
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => onToggleProjectActive?.(folder.id, folder.isActive)}
+            className="px-3 py-2 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50"
+          >
+            {folder.isActive ? 'Mark Inactive' : 'Mark Active'}
+          </button>
+        )}
+        {isAdmin &&
+          (() => {
+            const isConfirm =
+              pendingDelete?.type === 'project' &&
+              pendingDelete?.folderId === folder.id
+            return (
+              <button
+                onClick={() => {
+                  if (isConfirm) {
+                    onClearDelete()
+                    onDeleteFolder(folder.id)
+                  } else {
+                    onRequestDelete({ type: 'project', folderId: folder.id })
+                  }
+                }}
+                className="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50"
+              >
+                {isConfirm ? 'Click again to delete' : 'Delete Project'}
+              </button>
+            )
+          })()}
+        <span
+          className={`px-3 py-1 rounded-full text-xs font-semibold ${statusClass}`}
+        >
+          {statusLabel}
+        </span>
+        {!folder.isActive && (
+          <span className="px-2 py-1 rounded-full text-[11px] font-semibold bg-red-100 text-red-600">
+            Inactive
+          </span>
+        )}
+      </div>
     </div>
       )
     })()}
 
-    <ProfileFolderCard
-      folder={folder}
-      canEdit={canEdit}
-      isAdmin={isAdmin}
-      currentUserEmail={currentUserEmail}
-      pendingDelete={pendingDelete}
-      onRequestDelete={onRequestDelete}
-      onClearDelete={onClearDelete}
-      onAddInvoice={onAddInvoice}
-      onUpdateInvoice={onUpdateInvoice}
-      onDeleteInvoice={onDeleteInvoice}
-      onToggleInvoicePaid={onToggleInvoicePaid}
-    />
+    <div
+      className={`grid gap-4 ${
+        selectedInvoiceId
+          ? 'grid-cols-1 lg:grid-cols-[1fr_280px]'
+          : 'grid-cols-1'
+      }`}
+    >
+      <ProfileFolderCard
+        folder={folder}
+        canEdit={canEdit}
+        canAddInvoice={canEdit && folder.isActive}
+        isAdmin={isAdmin}
+        currentUserEmail={currentUserEmail}
+        pendingDelete={pendingDelete}
+        onRequestDelete={onRequestDelete}
+        onClearDelete={onClearDelete}
+        onAddInvoice={onAddInvoice}
+        onUpdateInvoice={onUpdateInvoice}
+        onAddInvoiceFile={onAddInvoiceFile}
+        onDeleteInvoiceFile={onDeleteInvoiceFile}
+        onDeleteInvoice={onDeleteInvoice}
+        onToggleInvoicePaid={onToggleInvoicePaid}
+        onSelectInvoice={onSelectInvoice}
+      />
+      {selectedInvoiceId && (
+        (() => {
+          const selectedInvoice = folder.invoices.find(
+            (inv) => inv.id === selectedInvoiceId,
+          )
+          if (!selectedInvoice) return null
+          const files = [
+            ...(selectedInvoice.files || []),
+            ...(selectedInvoice.imageUrl
+              ? [
+                  {
+                    id: `legacy-${selectedInvoice.id}`,
+                    name: selectedInvoice.imageName || 'legacy-file',
+                    path: selectedInvoice.imagePath || null,
+                    url: selectedInvoice.imageUrl,
+                    legacy: true,
+                  },
+                ]
+              : []),
+          ]
+          return (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-gray-900">
+                  Invoice Files
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => onSelectInvoice(null)}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  Close
+                </button>
+              </div>
+              {files.length === 0 ? (
+                <p className="text-sm text-gray-500">No files yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {files.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between gap-2 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        {file.url && file.url.match(/\.(png|jpe?g|gif|webp)$/i) ? (
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            className="w-10 h-10 rounded-md object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-md bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+                            PDF
+                          </div>
+                        )}
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 hover:text-blue-800 truncate"
+                        >
+                          {file.name}
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          file.legacy
+                            ? onDeleteLegacyInvoiceFile(selectedInvoice.id, file.path)
+                            : onDeleteInvoiceFile(file.id, file.path)
+                        }
+                        className="text-red-600 hover:text-red-800 text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) {
+                      onAddInvoiceFile(selectedInvoice.id, file)
+                      event.target.value = ''
+                    }
+                  }}
+                  className="hidden"
+                  id="add-invoice-file"
+                />
+                <label
+                  htmlFor="add-invoice-file"
+                  className="inline-flex items-center justify-center w-full px-3 py-2 border border-gray-300 rounded-lg text-xs hover:bg-gray-50 cursor-pointer"
+                >
+                  Add file
+                </label>
+              </div>
+            </div>
+          )
+        })()
+      )}
+    </div>
   </div>
 )
 
@@ -887,10 +1167,14 @@ const DCCableProjectManager = () => {
   const [currentUser, setCurrentUser] = useState(null)
   const [userRole, setUserRole] = useState(null)
   const [selectedFolderId, setSelectedFolderId] = useState(null)
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState(null)
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterProject, setFilterProject] = useState('')
   const [filterCreatedDate, setFilterCreatedDate] = useState('')
   const [filterPaidDate, setFilterPaidDate] = useState('')
+  const [filterCreatedFrom, setFilterCreatedFrom] = useState('')
+  const [filterCreatedTo, setFilterCreatedTo] = useState('')
+  const [showCustomDate, setShowCustomDate] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
   const [quickProjectId, setQuickProjectId] = useState('')
@@ -1001,13 +1285,14 @@ const DCCableProjectManager = () => {
     if (!isAuthenticated || !currentUser) return
     setIsLoadingData(true)
 
-    const [projectsRes, invoicesRes, payrollRes] = await Promise.all([
+    const [projectsRes, invoicesRes, payrollRes, filesRes] = await Promise.all([
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('invoices').select('*').order('created_at', { ascending: false }),
       supabase.from('payroll_entries').select('*').order('created_at', { ascending: false }),
+      supabase.from('invoice_files').select('*').order('created_at', { ascending: false }),
     ])
 
-    if (projectsRes.error || invoicesRes.error || payrollRes.error) {
+    if (projectsRes.error || invoicesRes.error || payrollRes.error || filesRes.error) {
       setIsLoadingData(false)
       return
     }
@@ -1015,6 +1300,7 @@ const DCCableProjectManager = () => {
     const projectsData = projectsRes.data || []
     const invoicesDataRaw = invoicesRes.data || []
     const payrollData = payrollRes.data || []
+    const filesData = filesRes.data || []
 
     const invoicesData =
       userRole === 'admin'
@@ -1034,9 +1320,18 @@ const DCCableProjectManager = () => {
           seenByAdmin: invoice.seen_by_admin,
             imageName: invoice.image_name || '',
             imageUrl: invoice.image_url || '',
+            imagePath: invoice.image_path || '',
             expectedPaymentDate: invoice.expected_payment_date || '',
-            createdBy: invoice.created_by_email || '',
-          }))
+            files: filesData
+              .filter((file) => file.invoice_id === invoice.id)
+              .map((file) => ({
+                id: file.id,
+                name: file.file_name,
+                path: file.file_path,
+                url: file.file_url,
+              })),
+          createdBy: invoice.created_by_email || '',
+        }))
 
       const projectPayroll = payrollData
         .filter((entry) => entry.project_id === project.id)
@@ -1046,14 +1341,15 @@ const DCCableProjectManager = () => {
           createdAt: entry.created_at ? entry.created_at.slice(0, 10) : '',
         }))
 
-      return {
-        id: project.id,
-        name: project.name,
-        ownerEmail: project.created_by_email || 'admin',
-        payrollEntries: projectPayroll,
-        invoices: projectInvoices,
-      }
-    })
+        return {
+          id: project.id,
+          name: project.name,
+          ownerEmail: project.created_by_email || 'admin',
+          isActive: project.is_active ?? true,
+          payrollEntries: projectPayroll,
+          invoices: projectInvoices,
+        }
+      })
 
     setFolders(foldersMapped)
     setIsLoadingData(false)
@@ -1088,11 +1384,15 @@ const DCCableProjectManager = () => {
     if (!projectName.trim()) return
     const trimmedName = projectName.trim()
     const createProject = async () => {
-      await supabase.from('projects').insert({
+      const { error } = await supabase.from('projects').insert({
         name: trimmedName,
         created_by: currentUser?.id,
         created_by_email: currentUser?.email,
       })
+      if (error) {
+        alert(`Create project failed: ${error.message}`)
+        return
+      }
       setNewProjectName('')
       loadData()
     }
@@ -1126,6 +1426,11 @@ const DCCableProjectManager = () => {
     imageFile,
   }) => {
     if (!amount) return
+    const targetFolder = findFolderById(folders, folderId)
+    if (targetFolder && !targetFolder.isActive) {
+      alert('This project is inactive. Ask an admin to reactivate it.')
+      return
+    }
     const today = new Date().toISOString().slice(0, 10)
     const uploadResult = await uploadInvoiceFile(imageFile)
     await supabase.from('invoices').insert({
@@ -1165,6 +1470,11 @@ const DCCableProjectManager = () => {
   const handleQuickAddInvoice = (event) => {
     event.preventDefault()
     if (!quickProjectId || !quickAmount) return
+    const targetFolder = findFolderById(folders, quickProjectId)
+    if (targetFolder && !targetFolder.isActive) {
+      alert('This project is inactive. Ask an admin to reactivate it.')
+      return
+    }
     handleAddInvoice({
       folderId: quickProjectId,
       amount: quickAmount,
@@ -1192,10 +1502,80 @@ const DCCableProjectManager = () => {
       const updatePayload = {}
       if (typeof updates.amount !== 'undefined') updatePayload.amount = updates.amount
       if (typeof updates.date !== 'undefined') updatePayload.date = updates.date
-      await supabase.from('invoices').update(updatePayload).eq('id', invoiceId)
+      if (typeof updates.expectedPaymentDate !== 'undefined') {
+        updatePayload.expected_payment_date = updates.expectedPaymentDate || null
+      }
+      const { error } = await supabase
+        .from('invoices')
+        .update(updatePayload)
+        .eq('id', invoiceId)
+      if (error) {
+        alert(`Update failed: ${error.message}`)
+        return
+      }
       loadData()
     }
     updateInvoice()
+  }
+
+  const handleAddInvoiceFile = (invoiceId, file) => {
+    const addFile = async () => {
+      const uploadResult = await uploadInvoiceFile(file)
+      if (!uploadResult.path || !uploadResult.publicUrl) {
+        alert('File upload failed')
+        return
+      }
+      const { error } = await supabase.from('invoice_files').insert({
+        invoice_id: invoiceId,
+        file_name: file.name,
+        file_path: uploadResult.path,
+        file_url: uploadResult.publicUrl,
+        created_by: currentUser?.id,
+      })
+      if (error) {
+        alert(`File add failed: ${error.message}`)
+        return
+      }
+      loadData()
+    }
+    addFile()
+  }
+
+  const handleDeleteInvoiceFile = (fileId, filePath) => {
+    const deleteFile = async () => {
+      if (filePath) {
+        await supabase.storage.from('invoice-files').remove([filePath])
+      }
+      const { error } = await supabase.from('invoice_files').delete().eq('id', fileId)
+      if (error) {
+        alert(`File delete failed: ${error.message}`)
+        return
+      }
+      loadData()
+    }
+    deleteFile()
+  }
+
+  const handleDeleteLegacyInvoiceFile = (invoiceId, filePath) => {
+    const deleteLegacy = async () => {
+      if (filePath) {
+        await supabase.storage.from('invoice-files').remove([filePath])
+      }
+      const { error } = await supabase
+        .from('invoices')
+        .update({
+          image_name: null,
+          image_path: null,
+          image_url: null,
+        })
+        .eq('id', invoiceId)
+      if (error) {
+        alert(`File delete failed: ${error.message}`)
+        return
+      }
+      loadData()
+    }
+    deleteLegacy()
   }
 
   const toggleInvoicePaid = (folderId, invoiceId) => {
@@ -1205,7 +1585,7 @@ const DCCableProjectManager = () => {
         (inv) => inv.id === invoiceId,
       )
       if (!invoice) return
-      await supabase
+      const { error } = await supabase
         .from('invoices')
         .update({
           paid: !invoice.paid,
@@ -1213,6 +1593,10 @@ const DCCableProjectManager = () => {
           seen_by_admin: true,
         })
         .eq('id', invoiceId)
+      if (error) {
+        alert(`Paid status update failed: ${error.message}`)
+        return
+      }
       loadData()
     }
     togglePaid()
@@ -1223,13 +1607,33 @@ const DCCableProjectManager = () => {
     if (!folder) return
     if (userRole !== 'admin') return
     const deleteProject = async () => {
-      await supabase.from('projects').delete().eq('id', folderId)
+      const { error } = await supabase.from('projects').delete().eq('id', folderId)
+      if (error) {
+        alert(`Delete failed: ${error.message}`)
+        return
+      }
       if (selectedFolderId === folderId) {
         setSelectedFolderId(null)
       }
       loadData()
     }
     deleteProject()
+  }
+
+  const toggleProjectActive = (folderId, isActive) => {
+    if (userRole !== 'admin') return
+    const updateProject = async () => {
+      const { error } = await supabase
+        .from('projects')
+        .update({ is_active: !isActive })
+        .eq('id', folderId)
+      if (error) {
+        alert(`Update failed: ${error.message}`)
+        return
+      }
+      loadData()
+    }
+    updateProject()
   }
 
   const handleDeleteInvoice = (folderId, invoiceId) => {
@@ -1241,7 +1645,11 @@ const DCCableProjectManager = () => {
       return
     }
     const deleteInvoice = async () => {
-      await supabase.from('invoices').delete().eq('id', invoiceId)
+      const { error } = await supabase.from('invoices').delete().eq('id', invoiceId)
+      if (error) {
+        alert(`Delete failed: ${error.message}`)
+        return
+      }
       loadData()
     }
     deleteInvoice()
@@ -1257,6 +1665,15 @@ const DCCableProjectManager = () => {
     if (filterCreatedDate && invoice.createdAt !== filterCreatedDate) {
       return false
     }
+    if (filterCreatedFrom || filterCreatedTo) {
+      if (!invoice.createdAt) return false
+      if (filterCreatedFrom && invoice.createdAt < filterCreatedFrom) {
+        return false
+      }
+      if (filterCreatedTo && invoice.createdAt > filterCreatedTo) {
+        return false
+      }
+    }
     if (filterPaidDate && invoice.paidAt !== filterPaidDate) {
       return false
     }
@@ -1264,9 +1681,8 @@ const DCCableProjectManager = () => {
   }
 
   const folderMatchesFilters = (folder) => {
-    if (filterProject.trim()) {
-      const query = filterProject.trim().toLowerCase()
-      if (!folder.name.toLowerCase().includes(query)) return false
+    if (filterProject) {
+      if (folder.id !== filterProject) return false
     }
 
     const hasInvoiceFilters =
@@ -1281,11 +1697,7 @@ const DCCableProjectManager = () => {
     nodes.map((folder) => ({ ...folder, depth }))
 
   const filteredInvoices = allInvoices.filter((invoice) => {
-    const projectMatch = filterProject.trim()
-      ? invoice.folderName
-          .toLowerCase()
-          .includes(filterProject.trim().toLowerCase())
-      : true
+    const projectMatch = filterProject ? invoice.folderId === filterProject : true
     return projectMatch && invoiceMatchesFilters(invoice)
   })
 
@@ -1778,7 +2190,7 @@ const DCCableProjectManager = () => {
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Projects</h2>
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
               <Plus size={16} />
               New Project
             </button>
@@ -1794,7 +2206,7 @@ const DCCableProjectManager = () => {
             <p className="text-gray-600 mb-6">
               Create your first project to start organizing documents
             </p>
-            <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            <button className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
               Create Project
             </button>
           </div>
@@ -2159,7 +2571,7 @@ const DCCableProjectManager = () => {
                 <Menu size={24} />
               </button>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-xl">
                   DC
                 </div>
                 <div>
@@ -2285,8 +2697,14 @@ const DCCableProjectManager = () => {
               >
                 Logout
               </button>
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold cursor-pointer">
-                U
+              <div
+                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold cursor-pointer ${
+                  userRole === 'admin'
+                    ? 'bg-orange-500 text-white'
+                    : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {userRole === 'admin' ? 'A' : 'U'}
               </div>
             </div>
           </div>
@@ -2385,13 +2803,23 @@ const DCCableProjectManager = () => {
                 <label className="block text-xs font-semibold text-gray-600 mb-1">
                   Project
                 </label>
-                <input
-                  type="text"
+                <select
                   value={filterProject}
                   onChange={(event) => setFilterProject(event.target.value)}
-                  placeholder="Search project name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
+                >
+                  <option value="">All projects</option>
+                  {folders.map((folder) => (
+                    <option
+                      key={folder.id}
+                      value={folder.id}
+                      style={{ color: folder.isActive ? undefined : '#dc2626' }}
+                    >
+                      {folder.name}
+                      {!folder.isActive ? ' (inactive)' : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -2431,12 +2859,54 @@ const DCCableProjectManager = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
               </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDate((prev) => !prev)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                >
+                  {showCustomDate ? 'Hide Custom Date' : 'Custom Date'}
+                </button>
+              </div>
+              {showCustomDate && (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Custom Date From
+                    </label>
+                    <input
+                      type="date"
+                      value={filterCreatedFrom}
+                      onChange={(event) =>
+                        setFilterCreatedFrom(event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Custom Date To
+                    </label>
+                    <input
+                      type="date"
+                      value={filterCreatedTo}
+                      onChange={(event) =>
+                        setFilterCreatedTo(event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </>
+              )}
               <button
                 onClick={() => {
                   setFilterProject('')
                   setFilterStatus('all')
                   setFilterCreatedDate('')
+                  setFilterCreatedFrom('')
+                  setFilterCreatedTo('')
                   setFilterPaidDate('')
+                  setShowCustomDate(false)
                 }}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800"
               >
@@ -2477,10 +2947,10 @@ const DCCableProjectManager = () => {
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-                  >
-                    Add Project
-                  </button>
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600"
+                >
+                  Add Project
+                </button>
                 </form>
               </div>
               <AdminOverviewView
@@ -2488,7 +2958,7 @@ const DCCableProjectManager = () => {
                 filteredInvoices={filteredInvoices}
                 totalPaidAmount={totalPaidAmount}
                 totalUnpaidAmount={totalUnpaidAmount}
-                projectFilterText={filterProject}
+                projectFilterId={filterProject}
                 onSelectProject={(id) => {
                   setActiveView('projects')
                   setSelectedFolderId(id)
@@ -2604,8 +3074,8 @@ const DCCableProjectManager = () => {
                     </h2>
                     <p className="text-sm text-gray-600">
                       {userRole === 'admin'
-                        ? 'All user folders'
-                        : 'Your folders'}
+                        ? 'All user projects'
+                        : 'Your projects'}
                     </p>
                   </div>
                   <div className="text-xs font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
@@ -2633,12 +3103,19 @@ const DCCableProjectManager = () => {
                       onClearDelete={() => setPendingDelete(null)}
                       onBack={() => {
                         setSelectedFolderId(null)
+                        setSelectedInvoiceId(null)
                       }}
                       onAddInvoice={handleAddInvoice}
                       onUpdateInvoice={handleUpdateInvoice}
+                      onAddInvoiceFile={handleAddInvoiceFile}
+                      onDeleteInvoiceFile={handleDeleteInvoiceFile}
+                      onDeleteLegacyInvoiceFile={handleDeleteLegacyInvoiceFile}
                       onDeleteInvoice={handleDeleteInvoice}
                       onToggleInvoicePaid={toggleInvoicePaid}
                       onDeleteFolder={handleDeleteFolder}
+                      onToggleProjectActive={toggleProjectActive}
+                      selectedInvoiceId={selectedInvoiceId}
+                      onSelectInvoice={setSelectedInvoiceId}
                     />
                   )
                 }
@@ -2649,99 +3126,16 @@ const DCCableProjectManager = () => {
 
                 return (
                   <div className="space-y-6">
-                    {userRole === 'regular' && (
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                          Add Invoice to Project
-                        </h3>
-                        <form
-                          className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
-                          onSubmit={handleQuickAddInvoice}
-                        >
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
-                              Project
-                            </label>
-                            <select
-                              value={quickProjectId}
-                              onChange={(event) =>
-                                setQuickProjectId(event.target.value)
-                              }
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            >
-                              <option value="">Select a project</option>
-                              {folders.map((folder) => (
-                                <option key={folder.id} value={folder.id}>
-                                  {folder.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
-                              Amount
-                            </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={quickAmount}
-                              onChange={(event) =>
-                                setQuickAmount(event.target.value)
-                              }
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
-                              Date
-                            </label>
-                            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-gray-50">
-                              {new Date().toLocaleDateString()}
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
-                              Expected Payment
-                            </label>
-                            <input
-                              type="date"
-                              value={quickExpectedPayment}
-                              onChange={(event) =>
-                                setQuickExpectedPayment(event.target.value)
-                              }
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
-                              Invoice Image
-                            </label>
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={(event) =>
-                                setQuickFile(event.target.files?.[0] || null)
-                              }
-                              className="w-full text-sm"
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            className="md:col-span-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-                          >
-                            Add Invoice
-                          </button>
-                        </form>
-                      </div>
-                    )}
-
                     <ProjectFolderList
                       folders={visibleFolders}
                       onSelectFolder={(id) => {
                         setSelectedFolderId(id)
+                        setSelectedInvoiceId(null)
                       }}
                       onDeleteFolder={handleDeleteFolder}
                       canDeleteFolder={userRole === 'admin'}
+                      isAdmin={userRole === 'admin'}
+                      onToggleProjectActive={toggleProjectActive}
                       pendingDelete={pendingDelete}
                       onRequestDelete={requestDelete}
                       onClearDelete={() => setPendingDelete(null)}
