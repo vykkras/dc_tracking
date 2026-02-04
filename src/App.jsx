@@ -104,6 +104,7 @@ const ProfileFolderCard = ({
   canAddInvoice,
   isAdmin,
   currentUserEmail,
+  companies,
   pendingDelete,
   onRequestDelete,
   onClearDelete,
@@ -117,6 +118,7 @@ const ProfileFolderCard = ({
 }) => {
   const [amount, setAmount] = useState('')
   const [expectedPayment, setExpectedPayment] = useState('')
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [imageFile, setImageFile] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingInvoiceId, setEditingInvoiceId] = useState(null)
@@ -186,11 +188,17 @@ const ProfileFolderCard = ({
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm space-y-2"
             >
               {!isEditing ? (
-                <div className="grid grid-cols-1 sm:grid-cols-[120px_120px_140px_1fr_120px_1fr] gap-2 items-center">
+                <div className="grid grid-cols-1 sm:grid-cols-[110px_130px_120px_140px_1fr_90px_1fr] gap-2 items-center">
                   <div>
                     <div className="text-xs text-gray-500">Amount</div>
                     <div className="text-sm text-gray-900">
                       ${Number(invoice.amount || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Company</div>
+                    <div className="text-sm text-gray-700">
+                      {invoice.companyName || '—'}
                     </div>
                   </div>
                   <div>
@@ -268,7 +276,7 @@ const ProfileFolderCard = ({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">
                       Amount
@@ -285,6 +293,27 @@ const ProfileFolderCard = ({
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Company
+                    </label>
+                    <select
+                      value={invoice.companyId || ''}
+                      onChange={(event) =>
+                        onUpdateInvoice(folder.id, invoice.id, {
+                          companyId: event.target.value || null,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -343,7 +372,7 @@ const ProfileFolderCard = ({
               </button>
               {showNewForm && (
             <form
-              className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+              className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end"
               onSubmit={async (event) => {
                 event.preventDefault()
                 if (!amount) return
@@ -351,11 +380,13 @@ const ProfileFolderCard = ({
                 await onAddInvoice({
                   folderId: folder.id,
                   amount,
+                  companyId: selectedCompanyId || null,
                   expectedPaymentDate: expectedPayment || null,
                   imageFile,
                 })
                 setAmount('')
                 setExpectedPayment('')
+                setSelectedCompanyId('')
                 setImageFile(null)
                 if (fileInputRef.current) {
                   fileInputRef.current.value = ''
@@ -376,6 +407,24 @@ const ProfileFolderCard = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   placeholder="0.00"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Company
+                </label>
+                <select
+                  value={selectedCompanyId}
+                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  disabled={isSubmitting}
+                >
+                  <option value="">Select company</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -506,6 +555,7 @@ const AdminOverviewView = ({
   onSelectProject,
   projectFilterId,
 }) => {
+  const [cardsView, setCardsView] = useState('projects')
   const today = new Date().toISOString().slice(0, 10)
   const totalOverdueAmount = filteredInvoices
     .filter(
@@ -563,6 +613,44 @@ const AdminOverviewView = ({
         color,
       }
     })
+
+  const companyTotalsMap = filteredInvoices.reduce((acc, invoice) => {
+    const key = invoice.companyId || 'none'
+    if (!acc[key]) {
+      acc[key] = {
+        id: key,
+        name: invoice.companyName || 'Unassigned',
+        total: 0,
+        paid: 0,
+        unpaid: 0,
+        color: null,
+      }
+    }
+    acc[key].total += invoice.amount
+    if (invoice.paid) {
+      acc[key].paid += invoice.amount
+    } else {
+      acc[key].unpaid += invoice.amount
+    }
+    return acc
+  }, {})
+
+  const companyTotals = Object.values(companyTotalsMap).map(
+    (company, index) => ({
+      ...company,
+      color: [
+        '#2563eb',
+        '#16a34a',
+        '#f97316',
+        '#dc2626',
+        '#7c3aed',
+        '#0891b2',
+        '#eab308',
+        '#db2777',
+        '#0f172a',
+      ][index % 9],
+    }),
+  )
 
   const totalAllProjects = projectTotals.reduce(
     (sum, project) => sum + project.total,
@@ -699,14 +787,14 @@ const AdminOverviewView = ({
 
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-900">
-          Projects Breakdown
+          Overview Breakdown
         </h3>
         {folders.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center text-gray-500">
             No projects created yet.
           </div>
         )}
-        <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr_320px] gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center justify-center">
             <div className="relative">
               <div
@@ -720,7 +808,7 @@ const AdminOverviewView = ({
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
-                  <p className="text-xs text-gray-500">Total</p>
+                  <p className="text-xs text-gray-500">Projects</p>
                   <p className="text-lg font-semibold text-gray-900">
                     ${totalAllProjects.toLocaleString()}
                   </p>
@@ -728,37 +816,53 @@ const AdminOverviewView = ({
               </div>
             </div>
           </div>
-          <div className="space-y-2">
-            {projectTotals.map((project) => (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => onSelectProject(project.id)}
-                className="w-full text-left bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex items-center justify-between gap-3 hover:border-blue-300"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="w-4 h-4 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {project.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      ${project.total.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-[11px] text-gray-500 text-right">
-                  ${project.paid.toLocaleString()} paid • $
-                  {project.unpaid.toLocaleString()} unpaid
-                  <div className="text-gray-400">
-                    Payroll: ${project.payrollTotal.toLocaleString()}
-                  </div>
-                </div>
-              </button>
-            ))}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center justify-center">
+            <div className="relative">
+              {(() => {
+                const companyTotalAll = companyTotals.reduce(
+                  (sum, company) => sum + company.total,
+                  0,
+                )
+                const companySegments = companyTotals
+                  .filter((company) => company.total > 0)
+                  .reduce(
+                    (acc, company) => {
+                      const start = acc.current
+                      const slice =
+                        companyTotalAll === 0
+                          ? 0
+                          : (company.total / companyTotalAll) * 360
+                      const end = start + slice
+                      acc.stops.push(`${company.color} ${start}deg ${end}deg`)
+                      acc.current = end
+                      return acc
+                    },
+                    { stops: [], current: 0 },
+                  )
+
+                return (
+                  <>
+                    <div
+                      className="w-56 h-56 sm:w-64 sm:h-64 rounded-full border border-gray-200"
+                      style={{
+                        background:
+                          companyTotalAll === 0
+                            ? 'conic-gradient(#e5e7eb 0deg, #e5e7eb 360deg)'
+                            : `conic-gradient(${companySegments.stops.join(', ')})`,
+                      }}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-white border border-gray-200 flex flex-col items-center justify-center text-center px-3">
+                        <p className="text-xs text-gray-500">Companies</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          ${companyTotalAll.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 flex items-center justify-center">
             <div className="relative">
@@ -807,6 +911,113 @@ const AdminOverviewView = ({
                 )
               })()}
             </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h4 className="text-sm font-semibold text-gray-700">
+              Breakdown Cards
+            </h4>
+            <div className="flex items-center gap-2">
+              {['projects', 'companies', 'payroll'].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setCardsView(key)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${
+                    cardsView === key
+                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                      : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  }`}
+                >
+                  {key[0].toUpperCase() + key.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-2">
+            {cardsView === 'projects' &&
+              projectTotals.map((project) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelectProject(project.id)}
+                  className="w-full text-left bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex items-center justify-between gap-3 hover:border-blue-300"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {project.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        ${project.total.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-gray-500 text-right">
+                    ${project.paid.toLocaleString()} paid • $
+                    {project.unpaid.toLocaleString()} unpaid
+                    <div className="text-gray-400">
+                      Payroll: ${project.payrollTotal.toLocaleString()}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            {cardsView === 'companies' &&
+              companyTotals.map((company) => (
+                <div
+                  key={company.id}
+                  className="w-full text-left bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: company.color }}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {company.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        ${company.total.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-gray-500 text-right">
+                    ${company.paid.toLocaleString()} paid • $
+                    {company.unpaid.toLocaleString()} unpaid
+                  </div>
+                </div>
+              ))}
+            {cardsView === 'payroll' &&
+              projectTotals.map((project) => (
+                <div
+                  key={project.id}
+                  className="w-full text-left bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-4 h-4 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {project.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Payroll: ${project.payrollTotal.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-gray-500 text-right">
+                    ${project.total.toLocaleString()} invoices
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </div>
@@ -933,6 +1144,7 @@ const ProjectFolderDetail = ({
   canEdit,
   isAdmin,
   currentUserEmail,
+  companies,
   pendingDelete,
   onRequestDelete,
   onClearDelete,
@@ -1033,6 +1245,7 @@ const ProjectFolderDetail = ({
         canAddInvoice={canEdit && folder.isActive}
         isAdmin={isAdmin}
         currentUserEmail={currentUserEmail}
+        companies={companies}
         pendingDelete={pendingDelete}
         onRequestDelete={onRequestDelete}
         onClearDelete={onClearDelete}
@@ -1174,8 +1387,10 @@ const DCCableProjectManager = () => {
   const [filterPaidDate, setFilterPaidDate] = useState('')
   const [filterCreatedFrom, setFilterCreatedFrom] = useState('')
   const [filterCreatedTo, setFilterCreatedTo] = useState('')
+  const [filterCompany, setFilterCompany] = useState('')
   const [showCustomDate, setShowCustomDate] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
+  const [newCompanyName, setNewCompanyName] = useState('')
   const [showNotifications, setShowNotifications] = useState(false)
   const [quickProjectId, setQuickProjectId] = useState('')
   const [quickAmount, setQuickAmount] = useState('')
@@ -1185,6 +1400,8 @@ const DCCableProjectManager = () => {
   const [payrollAmount, setPayrollAmount] = useState('')
   const [pendingDelete, setPendingDelete] = useState(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const hasSetInitialView = useRef(false)
+  const hasLoggedSession = useRef(false)
 
   // Empty state - will be populated from your backend
   const [projects] = useState([])
@@ -1200,8 +1417,16 @@ const DCCableProjectManager = () => {
   ]
 
   const [folders, setFolders] = useState([])
+  const [companies, setCompanies] = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
+  const [logFilterUser, setLogFilterUser] = useState('')
+  const [logFilterAction, setLogFilterAction] = useState('')
+  const [logFilterEntity, setLogFilterEntity] = useState('')
+  const [logFilterFrom, setLogFilterFrom] = useState('')
+  const [logFilterTo, setLogFilterTo] = useState('')
 
   const handleLogout = async () => {
+    await logAction({ action: 'logout', entityType: 'session', entityId: null })
     await supabase.auth.signOut()
     setIsAuthenticated(false)
     setCurrentUser(null)
@@ -1240,11 +1465,20 @@ const DCCableProjectManager = () => {
         setCurrentUser({ id: session.user.id, email })
         setUserRole(isAdmin ? 'admin' : 'regular')
         setIsAuthenticated(true)
-        setActiveView(isAdmin ? 'dashboard' : 'home')
+        if (!hasSetInitialView.current) {
+          setActiveView(isAdmin ? 'dashboard' : 'home')
+          hasSetInitialView.current = true
+        }
+        if (!hasLoggedSession.current) {
+          logAction({ action: 'login', entityType: 'session', entityId: null })
+          hasLoggedSession.current = true
+        }
       } else {
         setCurrentUser(null)
         setUserRole(null)
         setIsAuthenticated(false)
+        hasSetInitialView.current = false
+        hasLoggedSession.current = false
       }
       setIsLoadingAuth(false)
     }
@@ -1276,6 +1510,22 @@ const DCCableProjectManager = () => {
     setShowDeleteModal(true)
   }
 
+  const logAction = async ({ action, entityType, entityId, metadata }) => {
+    if (!currentUser) return
+    try {
+      await supabase.from('audit_logs').insert({
+        action,
+        entity_type: entityType,
+        entity_id: entityId,
+        user_id: currentUser.id,
+        user_email: currentUser.email,
+        metadata: metadata || null,
+      })
+    } catch {
+      // Ignore logging errors to avoid blocking core actions.
+    }
+  }
+
   const closeSidebarIfMobile = () => {
     if (window.innerWidth < 1024) {
       setSidebarOpen(false)
@@ -1286,14 +1536,32 @@ const DCCableProjectManager = () => {
     if (!isAuthenticated || !currentUser) return
     setIsLoadingData(true)
 
-    const [projectsRes, invoicesRes, payrollRes, filesRes] = await Promise.all([
+    const requests = [
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('invoices').select('*').order('created_at', { ascending: false }),
       supabase.from('payroll_entries').select('*').order('created_at', { ascending: false }),
       supabase.from('invoice_files').select('*').order('created_at', { ascending: false }),
-    ])
+      supabase.from('companies').select('*').order('name', { ascending: true }),
+    ]
 
-    if (projectsRes.error || invoicesRes.error || payrollRes.error || filesRes.error) {
+    if (userRole === 'admin') {
+      requests.push(
+        supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(200),
+      )
+    }
+
+    const results = await Promise.all(requests)
+    const [projectsRes, invoicesRes, payrollRes, filesRes, companiesRes, logsRes] =
+      results
+
+    if (
+      projectsRes.error ||
+      invoicesRes.error ||
+      payrollRes.error ||
+      filesRes.error ||
+      companiesRes.error ||
+      (userRole === 'admin' && logsRes?.error)
+    ) {
       setIsLoadingData(false)
       return
     }
@@ -1302,11 +1570,18 @@ const DCCableProjectManager = () => {
     const invoicesDataRaw = invoicesRes.data || []
     const payrollData = payrollRes.data || []
     const filesData = filesRes.data || []
+    const companiesData = companiesRes.data || []
+    const logsData = logsRes?.data || []
 
     const invoicesData =
       userRole === 'admin'
         ? invoicesDataRaw
         : invoicesDataRaw.filter((invoice) => invoice.created_by === currentUser.id)
+
+    const companyLookup = companiesData.reduce((acc, company) => {
+      acc[company.id] = company
+      return acc
+    }, {})
 
     const foldersMapped = projectsData.map((project) => {
       const projectInvoices = invoicesData
@@ -1323,6 +1598,8 @@ const DCCableProjectManager = () => {
             imageUrl: invoice.image_url || '',
             imagePath: invoice.image_path || '',
             expectedPaymentDate: invoice.expected_payment_date || '',
+            companyId: invoice.company_id || '',
+            companyName: companyLookup[invoice.company_id]?.name || '',
             files: filesData
               .filter((file) => file.invoice_id === invoice.id)
               .map((file) => ({
@@ -1353,6 +1630,12 @@ const DCCableProjectManager = () => {
       })
 
     setFolders(foldersMapped)
+    setCompanies(companiesData)
+    if (userRole === 'admin') {
+      setAuditLogs(logsData)
+    } else {
+      setAuditLogs([])
+    }
     setIsLoadingData(false)
   }
 
@@ -1385,19 +1668,58 @@ const DCCableProjectManager = () => {
     if (!projectName.trim()) return
     const trimmedName = projectName.trim()
     const createProject = async () => {
-      const { error } = await supabase.from('projects').insert({
+      const { data, error } = await supabase
+        .from('projects')
+        .insert({
         name: trimmedName,
         created_by: currentUser?.id,
         created_by_email: currentUser?.email,
       })
+        .select()
+        .single()
       if (error) {
         alert(`Create project failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'create',
+        entityType: 'project',
+        entityId: data?.id || null,
+        metadata: { name: trimmedName },
+      })
       setNewProjectName('')
       loadData()
     }
     createProject()
+  }
+
+  const handleCreateCompany = (companyName) => {
+    if (!companyName.trim()) return
+    const trimmedName = companyName.trim()
+    const createCompany = async () => {
+      const { data, error } = await supabase
+        .from('companies')
+        .insert({
+        name: trimmedName,
+        created_by: currentUser?.id,
+        created_by_email: currentUser?.email,
+      })
+        .select()
+        .single()
+      if (error) {
+        alert(`Create company failed: ${error.message}`)
+        return
+      }
+      await logAction({
+        action: 'create',
+        entityType: 'company',
+        entityId: data?.id || null,
+        metadata: { name: trimmedName },
+      })
+      setNewCompanyName('')
+      loadData()
+    }
+    createCompany()
   }
 
   const findFolderById = (nodes, folderId) =>
@@ -1423,6 +1745,7 @@ const DCCableProjectManager = () => {
   const handleAddInvoice = async ({
     folderId,
     amount,
+    companyId,
     expectedPaymentDate,
     imageFile,
   }) => {
@@ -1434,9 +1757,12 @@ const DCCableProjectManager = () => {
     }
     const today = new Date().toISOString().slice(0, 10)
     const uploadResult = await uploadInvoiceFile(imageFile)
-    await supabase.from('invoices').insert({
+    const { data, error } = await supabase
+      .from('invoices')
+      .insert({
       project_id: folderId,
       amount: Number(amount),
+      company_id: companyId || null,
       date: today,
       created_by: currentUser?.id,
       created_by_email: currentUser?.email,
@@ -1448,6 +1774,22 @@ const DCCableProjectManager = () => {
       image_url: uploadResult.publicUrl,
       expected_payment_date: expectedPaymentDate,
     })
+      .select()
+      .single()
+    if (error) {
+      alert(`Add invoice failed: ${error.message}`)
+      return
+    }
+    await logAction({
+      action: 'create',
+      entityType: 'invoice',
+      entityId: data?.id || null,
+      metadata: {
+        project_id: folderId,
+        amount: Number(amount),
+        company_id: companyId || null,
+      },
+    })
     loadData()
   }
 
@@ -1457,10 +1799,24 @@ const DCCableProjectManager = () => {
     const amountValue = Number(payrollAmount)
     if (Number.isNaN(amountValue) || amountValue <= 0) return
     const addPayroll = async () => {
-      await supabase.from('payroll_entries').insert({
+      const { data, error } = await supabase
+        .from('payroll_entries')
+        .insert({
         project_id: payrollProjectId,
         amount: amountValue,
         created_by: currentUser?.id,
+      })
+        .select()
+        .single()
+      if (error) {
+        alert(`Add payroll failed: ${error.message}`)
+        return
+      }
+      await logAction({
+        action: 'create',
+        entityType: 'payroll',
+        entityId: data?.id || null,
+        metadata: { project_id: payrollProjectId, amount: amountValue },
       })
       setPayrollAmount('')
       loadData()
@@ -1493,6 +1849,12 @@ const DCCableProjectManager = () => {
         .from('invoices')
         .update({ seen_by_admin: true })
         .eq('id', invoiceId)
+      await logAction({
+        action: 'update',
+        entityType: 'invoice',
+        entityId: invoiceId,
+        metadata: { seen_by_admin: true },
+      })
       loadData()
     }
     markSeen()
@@ -1503,6 +1865,9 @@ const DCCableProjectManager = () => {
       const updatePayload = {}
       if (typeof updates.amount !== 'undefined') updatePayload.amount = updates.amount
       if (typeof updates.date !== 'undefined') updatePayload.date = updates.date
+      if (typeof updates.companyId !== 'undefined') {
+        updatePayload.company_id = updates.companyId || null
+      }
       if (typeof updates.expectedPaymentDate !== 'undefined') {
         updatePayload.expected_payment_date = updates.expectedPaymentDate || null
       }
@@ -1514,6 +1879,12 @@ const DCCableProjectManager = () => {
         alert(`Update failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'update',
+        entityType: 'invoice',
+        entityId: invoiceId,
+        metadata: updatePayload,
+      })
       loadData()
     }
     updateInvoice()
@@ -1537,6 +1908,12 @@ const DCCableProjectManager = () => {
         alert(`File add failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'create',
+        entityType: 'invoice_file',
+        entityId: invoiceId,
+        metadata: { file_name: file.name },
+      })
       loadData()
     }
     addFile()
@@ -1552,6 +1929,12 @@ const DCCableProjectManager = () => {
         alert(`File delete failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'delete',
+        entityType: 'invoice_file',
+        entityId: fileId,
+        metadata: { file_path: filePath || null },
+      })
       loadData()
     }
     deleteFile()
@@ -1574,6 +1957,12 @@ const DCCableProjectManager = () => {
         alert(`File delete failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'delete',
+        entityType: 'invoice_file_legacy',
+        entityId: invoiceId,
+        metadata: { file_path: filePath || null },
+      })
       loadData()
     }
     deleteLegacy()
@@ -1598,6 +1987,15 @@ const DCCableProjectManager = () => {
         alert(`Paid status update failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'update',
+        entityType: 'invoice',
+        entityId: invoiceId,
+        metadata: {
+          paid: !invoice.paid,
+          paid_at: invoice.paid ? null : today,
+        },
+      })
       loadData()
     }
     togglePaid()
@@ -1613,6 +2011,12 @@ const DCCableProjectManager = () => {
         alert(`Delete failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'delete',
+        entityType: 'project',
+        entityId: folderId,
+        metadata: { name: folder.name },
+      })
       if (selectedFolderId === folderId) {
         setSelectedFolderId(null)
       }
@@ -1632,6 +2036,12 @@ const DCCableProjectManager = () => {
         alert(`Update failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'update',
+        entityType: 'project',
+        entityId: folderId,
+        metadata: { is_active: !isActive },
+      })
       loadData()
     }
     updateProject()
@@ -1651,6 +2061,15 @@ const DCCableProjectManager = () => {
         alert(`Delete failed: ${error.message}`)
         return
       }
+      await logAction({
+        action: 'delete',
+        entityType: 'invoice',
+        entityId: invoiceId,
+        metadata: {
+          project_id: folderId,
+          amount: invoice.amount,
+        },
+      })
       loadData()
     }
     deleteInvoice()
@@ -1659,6 +2078,9 @@ const DCCableProjectManager = () => {
   const collectFolderInvoices = (folder) => folder.invoices
 
   const invoiceMatchesFilters = (invoice) => {
+    if (filterCompany) {
+      if (invoice.companyId !== filterCompany) return false
+    }
     if (filterStatus !== 'all') {
       const wantsPaid = filterStatus === 'paid'
       if (invoice.paid !== wantsPaid) return false
@@ -1687,7 +2109,12 @@ const DCCableProjectManager = () => {
     }
 
     const hasInvoiceFilters =
-      filterStatus !== 'all' || filterCreatedDate || filterPaidDate
+      filterCompany ||
+      filterStatus !== 'all' ||
+      filterCreatedDate ||
+      filterPaidDate ||
+      filterCreatedFrom ||
+      filterCreatedTo
 
     if (!hasInvoiceFilters) return true
 
@@ -2762,6 +3189,24 @@ const DCCableProjectManager = () => {
               </button>
             )}
 
+            {userRole === 'admin' && (
+              <button
+                onClick={() => {
+                  setActiveView('logs')
+                  setSelectedFolderId(null)
+                  closeSidebarIfMobile()
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  activeView === 'logs'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <FileText size={20} />
+                <span className="font-medium">Logs</span>
+              </button>
+            )}
+
             {userRole === 'regular' && (
               <button
                 onClick={() => {
@@ -2818,6 +3263,23 @@ const DCCableProjectManager = () => {
                     >
                       {folder.name}
                       {!folder.isActive ? ' (inactive)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">
+                  Company
+                </label>
+                <select
+                  value={filterCompany}
+                  onChange={(event) => setFilterCompany(event.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value="">All companies</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
                     </option>
                   ))}
                 </select>
@@ -2902,6 +3364,7 @@ const DCCableProjectManager = () => {
               <button
                 onClick={() => {
                   setFilterProject('')
+                  setFilterCompany('')
                   setFilterStatus('all')
                   setFilterCreatedDate('')
                   setFilterCreatedFrom('')
@@ -2948,11 +3411,37 @@ const DCCableProjectManager = () => {
                   />
                   <button
                     type="submit"
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600"
-                >
-                  Add Project
-                </button>
+                    className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600"
+                  >
+                    Add Project
+                  </button>
                 </form>
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    Create Company
+                  </h3>
+                  <form
+                    className="flex flex-col md:flex-row gap-3"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      handleCreateCompany(newCompanyName)
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={newCompanyName}
+                      onChange={(event) => setNewCompanyName(event.target.value)}
+                      placeholder="Company name"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600"
+                    >
+                      Add Company
+                    </button>
+                  </form>
+                </div>
               </div>
               <AdminOverviewView
                 folders={folders}
@@ -3062,6 +3551,212 @@ const DCCableProjectManager = () => {
               </div>
             </div>
           )}
+          {userRole === 'admin' && activeView === 'logs' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                {(() => {
+                  const uniqueUsers = Array.from(
+                    new Set(
+                      auditLogs
+                        .map((log) => log.user_email)
+                        .filter((email) => email),
+                    ),
+                  )
+                  const uniqueActions = Array.from(
+                    new Set(auditLogs.map((log) => log.action).filter(Boolean)),
+                  )
+                  const uniqueEntities = Array.from(
+                    new Set(
+                      auditLogs.map((log) => log.entity_type).filter(Boolean),
+                    ),
+                  )
+                  const filteredLogs = auditLogs.filter((log) => {
+                    if (logFilterUser && log.user_email !== logFilterUser) {
+                      return false
+                    }
+                    if (logFilterAction && log.action !== logFilterAction) {
+                      return false
+                    }
+                    if (logFilterEntity && log.entity_type !== logFilterEntity) {
+                      return false
+                    }
+                    if (logFilterFrom) {
+                      const created = log.created_at
+                        ? log.created_at.slice(0, 10)
+                        : ''
+                      if (!created || created < logFilterFrom) return false
+                    }
+                    if (logFilterTo) {
+                      const created = log.created_at
+                        ? log.created_at.slice(0, 10)
+                        : ''
+                      if (!created || created > logFilterTo) return false
+                    }
+                    return true
+                  })
+
+                  return (
+                    <>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Activity Logs
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Showing {filteredLogs.length} of {auditLogs.length} actions
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      User
+                    </label>
+                    <select
+                      value={logFilterUser}
+                      onChange={(event) =>
+                        setLogFilterUser(event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">All users</option>
+                      {uniqueUsers.map((email) => (
+                        <option key={email} value={email}>
+                          {email}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Action
+                    </label>
+                    <select
+                      value={logFilterAction}
+                      onChange={(event) =>
+                        setLogFilterAction(event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">All actions</option>
+                      {uniqueActions.map((action) => (
+                        <option key={action} value={action}>
+                          {action}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      Entity
+                    </label>
+                    <select
+                      value={logFilterEntity}
+                      onChange={(event) =>
+                        setLogFilterEntity(event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">All entities</option>
+                      {uniqueEntities.map((entity) => (
+                        <option key={entity} value={entity}>
+                          {entity}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      From
+                    </label>
+                    <input
+                      type="date"
+                      value={logFilterFrom}
+                      onChange={(event) =>
+                        setLogFilterFrom(event.target.value)
+                      }
+                      className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">
+                      To
+                    </label>
+                    <input
+                      type="date"
+                      value={logFilterTo}
+                      onChange={(event) => setLogFilterTo(event.target.value)}
+                      className="w-full min-w-0 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-5 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLogFilterUser('')
+                        setLogFilterAction('')
+                        setLogFilterEntity('')
+                        setLogFilterFrom('')
+                        setLogFilterTo('')
+                      }}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                </div>
+                {filteredLogs.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    No activity logged yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left p-3">Time</th>
+                          <th className="text-left p-3">User</th>
+                          <th className="text-left p-3">Action</th>
+                          <th className="text-left p-3">Entity</th>
+                          <th className="text-left p-3">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredLogs.map((log) => (
+                          <tr
+                            key={log.id}
+                            className="border-b border-gray-200 hover:bg-gray-50"
+                          >
+                            <td className="p-3 whitespace-nowrap text-gray-600">
+                              {log.created_at
+                                ? new Date(log.created_at).toLocaleString()
+                                : '—'}
+                            </td>
+                            <td className="p-3 text-gray-700">
+                              {log.user_email || '—'}
+                            </td>
+                            <td className="p-3 text-gray-700">
+                              {log.action}
+                            </td>
+                            <td className="p-3 text-gray-700">
+                              {log.entity_type}
+                              {log.entity_id ? ` • ${log.entity_id}` : ''}
+                            </td>
+                            <td className="p-3 text-xs text-gray-500">
+                              {log.metadata
+                                ? JSON.stringify(log.metadata)
+                                : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
           {userRole === 'regular' && activeView === 'home' && (
             <RegularHomeView currentUser={currentUser} />
           )}
@@ -3099,6 +3794,7 @@ const DCCableProjectManager = () => {
                       canEdit={canEdit}
                       isAdmin={userRole === 'admin'}
                       currentUserEmail={currentUser?.email || ''}
+                      companies={companies}
                       pendingDelete={pendingDelete}
                       onRequestDelete={requestDelete}
                       onClearDelete={() => setPendingDelete(null)}
