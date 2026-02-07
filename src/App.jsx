@@ -1654,6 +1654,16 @@ const DCCableProjectManager = () => {
     )
 
   const allInvoices = collectInvoices(folders)
+  const companyInvoiceCounts = allInvoices.reduce((acc, invoice) => {
+    if (!invoice.companyId) return acc
+    acc[invoice.companyId] = (acc[invoice.companyId] || 0) + 1
+    return acc
+  }, {})
+  const companyUnpaidCounts = allInvoices.reduce((acc, invoice) => {
+    if (!invoice.companyId || invoice.paid) return acc
+    acc[invoice.companyId] = (acc[invoice.companyId] || 0) + 1
+    return acc
+  }, {})
   const todayDate = new Date().toISOString().slice(0, 10)
   const unseenInvoices = allInvoices.filter(
     (invoice) => !invoice.seenByAdmin,
@@ -2023,6 +2033,47 @@ const DCCableProjectManager = () => {
       loadData()
     }
     deleteProject()
+  }
+
+  const handleDeleteCompany = (companyId) => {
+    const company = companies.find((item) => item.id === companyId)
+    if (!company) return
+    if (userRole !== 'admin') return
+    const unpaidCount = companyUnpaidCounts[companyId] || 0
+    if (unpaidCount > 0) {
+      alert('Cannot delete a company with unpaid invoices.')
+      return
+    }
+    const invoiceCount = companyInvoiceCounts[companyId] || 0
+    const deleteCompany = async () => {
+      if (invoiceCount > 0) {
+        const { error: unassignError } = await supabase
+          .from('invoices')
+          .update({ company_id: null })
+          .eq('company_id', companyId)
+        if (unassignError) {
+          alert(`Unassign invoices failed: ${unassignError.message}`)
+          return
+        }
+      }
+      const { error } = await supabase.from('companies').delete().eq('id', companyId)
+      if (error) {
+        alert(`Delete failed: ${error.message}`)
+        return
+      }
+      await logAction({
+        action: 'delete',
+        entityType: 'company',
+        entityId: companyId,
+        metadata: {
+          name: company.name,
+          unassignedInvoices: invoiceCount,
+          unpaidInvoices: unpaidCount,
+        },
+      })
+      loadData()
+    }
+    deleteCompany()
   }
 
   const toggleProjectActive = (folderId, isActive) => {
@@ -2952,9 +3003,27 @@ const DCCableProjectManager = () => {
             </h3>
             <p className="text-sm text-gray-600 mt-2">
               Are you sure you want to delete this{' '}
-              {pendingDelete.type === 'project' ? 'project' : 'invoice'}?
+              {pendingDelete.type === 'project'
+                ? 'project'
+                : pendingDelete.type === 'invoice'
+                  ? 'invoice'
+                  : 'company'}
+              ?
               This action cannot be undone.
             </p>
+            {pendingDelete.type === 'company' && (
+              <p className="text-xs text-gray-500 mt-2">
+                {pendingDelete.invoiceCount > 0
+                  ? `${pendingDelete.invoiceCount} invoices will be unassigned.`
+                  : 'No invoices are linked to this company.'}
+              </p>
+            )}
+            {pendingDelete.type === 'company' &&
+              pendingDelete.unpaidCount > 0 && (
+                <p className="text-xs text-red-600 mt-2">
+                  This company has unpaid invoices and cannot be deleted.
+                </p>
+              )}
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -2966,8 +3035,23 @@ const DCCableProjectManager = () => {
                 Cancel
               </button>
               <button
-                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+                className={`px-4 py-2 text-sm rounded-lg ${
+                  pendingDelete.type === 'company' &&
+                  pendingDelete.unpaidCount > 0
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-red-600 text-white hover:bg-red-700'
+                }`}
+                disabled={
+                  pendingDelete.type === 'company' &&
+                  pendingDelete.unpaidCount > 0
+                }
                 onClick={() => {
+                  if (
+                    pendingDelete.type === 'company' &&
+                    pendingDelete.unpaidCount > 0
+                  ) {
+                    return
+                  }
                   if (pendingDelete.type === 'project') {
                     handleDeleteFolder(pendingDelete.folderId)
                   } else if (pendingDelete.type === 'invoice') {
@@ -2975,6 +3059,8 @@ const DCCableProjectManager = () => {
                       pendingDelete.folderId,
                       pendingDelete.invoiceId,
                     )
+                  } else if (pendingDelete.type === 'company') {
+                    handleDeleteCompany(pendingDelete.companyId)
                   }
                   setShowDeleteModal(false)
                   setPendingDelete(null)
@@ -3241,6 +3327,24 @@ const DCCableProjectManager = () => {
               <span className="font-medium">Projects</span>
             </button>
 
+            {userRole === 'admin' && (
+              <button
+                onClick={() => {
+                  setActiveView('companies')
+                  setSelectedFolderId(null)
+                  closeSidebarIfMobile()
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  activeView === 'companies'
+                    ? 'bg-blue-50 text-blue-600'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <Users size={20} />
+                <span className="font-medium">Manage Companies</span>
+              </button>
+            )}
+
             <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4 space-y-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 Filters
@@ -3454,6 +3558,76 @@ const DCCableProjectManager = () => {
                   setSelectedFolderId(id)
                 }}
               />
+            </div>
+          )}
+          {userRole === 'admin' && activeView === 'companies' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Manage Companies
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Delete is blocked when a company has unpaid invoices.
+                    </p>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {companies.length} total
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+                {companies.length === 0 ? (
+                  <div className="text-sm text-gray-500 border border-dashed border-gray-200 rounded-lg p-4">
+                    No companies yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {companies.map((company) => {
+                      const invoiceCount = companyInvoiceCounts[company.id] || 0
+                      const unpaidCount = companyUnpaidCounts[company.id] || 0
+                      const canDelete = unpaidCount === 0
+                      return (
+                        <div
+                          key={company.id}
+                          className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        >
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {company.name}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {invoiceCount} invoices • {unpaidCount} unpaid
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!canDelete) return
+                              requestDelete({
+                                type: 'company',
+                                companyId: company.id,
+                                companyName: company.name,
+                                invoiceCount,
+                                unpaidCount,
+                              })
+                            }}
+                            className={`text-xs font-semibold ${
+                              canDelete
+                                ? 'text-red-600 hover:text-red-800'
+                                : 'text-gray-400 cursor-not-allowed'
+                            }`}
+                            disabled={!canDelete}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
           {userRole === 'admin' && activeView === 'payroll' && (
